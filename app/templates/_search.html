@@ -1,0 +1,62 @@
+<section class="panel search-box">
+  <h2>Filtrar milhas da coleta</h2>
+  <form method="post" action="/buscas" class="search-form" id="search-form">
+    <input type="hidden" name="kind" value="miles">
+    <label>
+      Origens
+      <input name="origins" value="{{ origins_value|default(active_origin) }}" required>
+    </label>
+    <label>
+      Destinos
+      <input name="destinations" placeholder="SSA, LIS, MIA, FOR" value="{{ destinations_value|default(suggested_destinations) }}">
+    </label>
+    <label>
+      Tipo
+      <select name="trip_type" id="trip_type">
+        <option value="one_way">Só ida</option>
+        <option value="round_trip">Ida e volta</option>
+      </select>
+    </label>
+    <label>
+      Cabine
+      <select name="cabin">
+        <option value="economy">Econômica</option>
+        <option value="premium">Premium</option>
+        <option value="business">Executiva</option>
+        <option value="all">Todas</option>
+      </select>
+    </label>
+    <fieldset>
+      <legend>Datas</legend>
+      <label class="radio"><input type="radio" name="date_mode" value="flex" checked> Até 180 dias</label>
+      <label class="radio"><input type="radio" name="date_mode" value="year"> Até 1 ano</label>
+      <label class="radio"><input type="radio" name="date_mode" value="month"> Um mês</label>
+      <label class="radio"><input type="radio" name="date_mode" value="specific"> Datas específicas</label>
+    </fieldset>
+    <label>
+      Data de ida / início
+      <input type="text" name="date_start" placeholder="AAAA-MM-DD ou AAAA-MM">
+    </label>
+    <label>
+      Data de volta / fim
+      <input type="text" name="date_end" placeholder="AAAA-MM-DD">
+    </label>
+    <label id="nights-wrap" class="hidden">
+      Noites no destino (quando não informar a volta)
+      <input type="number" name="stay_nights" value="7" min="1" max="30">
+    </label>
+    <div class="checks">
+      <label class="check"><input type="checkbox" name="smiles" checked> Smiles (GOL)</label>
+      <label class="check"><input type="checkbox" name="azul" checked> TudoAzul</label>
+      <label class="check"><input type="checkbox" name="latam" checked> LATAM Pass</label>
+    </div>
+    <button type="submit">Filtrar coleta salva</button>
+  </form>
+  <p class="hint">
+    Em <strong>ida e volta</strong>, as milhas são dos <strong>dois trechos juntos</strong>.
+    Só ida mostra apenas um trecho.
+  </p>
+  <p class="hint">
+    Os valores vêm da última coleta LATAM Pass, TudoAzul e GOL Smiles no site de cada cia. Filtrar não faz busca nova.
+  </p>
+</section>

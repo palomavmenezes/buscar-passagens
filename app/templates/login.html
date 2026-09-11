@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Entrar · Viannas pelo Mundo{% endblock %}
+{% block body %}
+<section class="login-card">
+  <p class="kicker">Acesso privado</p>
+  <h1>Viannas pelo Mundo</h1>
+  <p class="lede">Passagens em milhas, com os valores das próprias cias.</p>
+  <form method="post" action="/login" class="stack">
+    <label>
+      Senha
+      <input type="password" name="password" required autofocus>
+    </label>
+    {% if error %}
+    <p class="error">{{ error }}</p>
+    {% endif %}
+    <button type="submit">Entrar</button>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}
+  {% if search %}Busca {{ search.id }}{% else %}Milhas{% endif %}
+  · Viannas pelo Mundo
+{% endblock %}
+{% block body %}
+<section class="hero compact">
+  <p class="kicker">
+    {% if search %}Busca {{ search.id }}{% else %}Só milhas{% endif %}
+  </p>
+  <h1>
+    {% if search %}
+      {{ search.origins }} → {{ search.destinations }}
+    {% elif filters is defined and filters.origin and filters.destination %}
+      {{ filters.origin }} → {{ filters.destination }}
+    {% else %}
+      Passagens em milhas
+    {% endif %}
+  </h1>
+  {% if not search and filters is defined and filters.origin and filters.destination %}
+  <p class="lede">
+    Lista em milhas para esta rota.
+    <a href="/milhas?origem={{ filters.origin }}">Ver todos os destinos</a>
+  </p>
+  {% endif %}
+  {% if search %}
+  <p class="lede" id="progress">{{ search.progress }} · {{ search.status }}</p>
+  {% else %}
+  <div class="origin-switch">
+    {% for code in origins %}
+    <a class="{% if code == active_origin %}on{% endif %}" href="/milhas?origem={{ code }}">{{ code }}</a>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+
+{% if not search %}
+  {% include "_harvest.html" %}
+  {% with kind='miles', origins_value=active_origin %}
+    {% include "_search.html" %}
+  {% endwith %}
+  {% if not (filters is defined and filters.destination) %}
+    {% if cards.national %}
+      <h3 class="sub">Nacionais saindo de {{ active_origin }}</h3>
+      {% with items=cards.national %}{% include "_gallery.html" %}{% endwith %}
+    {% endif %}
+    {% if cards.international %}
+      <h3 class="sub">Internacionais saindo de {{ active_origin }}</h3>
+      {% with items=cards.international %}{% include "_gallery.html" %}{% endwith %}
+    {% endif %}
+  {% endif %}
+{% endif %}
+
+<section class="stats">
+  <article>
+    <span>Resultados</span>
+    <strong>{{ stats.total or 0 }}</strong>
+  </article>
+  <article>
+    <span>Mais barata em milhas</span>
+    <strong>{% if stats.min_miles %}{{ stats.min_miles|milhas }}{% else %}—{% endif %}</strong>
+  </article>
+</section>
+
+<section class="panel" id="lista">
+  <form class="filters" method="get">
+    {% if scope in ['miles', 'all'] %}
+    <input name="origin" placeholder="Origem" value="{{ filters.origin if filters is defined else '' }}">
+    <input name="destination" placeholder="Destino" value="{{ filters.destination if filters is defined else '' }}">
+    {% endif %}
+    <select name="sort">
+      <option value="miles" {% if sort == 'miles' or sort == 'cheapest' %}selected{% endif %}>Menos milhas</option>
+      <option value="date" {% if sort == 'date' %}selected{% endif %}>Por data</option>
+    </select>
+    <a class="button" href="/export.xlsx?price_type=miles{% if search %}&search_id={{ search.id }}{% endif %}">Excel</a>
+    <button type="submit">Filtrar</button>
+  </form>
+
+  {% if rows %}
+  <table class="results">
+    <thead>
+      <tr>
+        <th>Rota</th>
+        <th>Data e horário</th>
+        <th>Programa</th>
+        <th>Milhas</th>
+        <th>Cia</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>
+          <strong>{{ row.origin }} → {{ row.destination }}</strong>
+          <div class="muted">{{ row.city if row.city is defined else '' }}</div>
+        </td>
+        <td>
+          <div><strong>Ida</strong> {{ row.departure_date|voo(row.departure_time, row.arrival_time) }}</div>
+          {% if row.return_date %}
+          <div class="muted"><strong>Volta</strong> {{ row.return_date|voo(row.return_time, row.return_arrival) }}</div>
+          {% else %}
+          <div class="muted">Só ida</div>
+          {% endif %}
+          {% if row.airline and row.airline != '—' %}
+          <div class="muted">{{ row.airline }}{% if row.stops is not none %} · {{ row.stops }} parada{{ 's' if row.stops != 1 else '' }}{% endif %}</div>
+          {% endif %}
+        </td>
+        <td>
+          <span class="pill miles">{{ program_labels.get(row.miles_program, row.miles_program or 'Milhas') }}</span>
+        </td>
+        <td>
+          <strong>{{ row.miles|milhas }} milhas</strong>
+          {% if row.taxes %}
+            <div class="muted">taxas {{ row.taxes|brl }}</div>
+          {% endif %}
+          {% if row.return_date %}
+          <div class="muted">ida + volta (os dois trechos)</div>
+          {% endif %}
+        </td>
+        <td>{{ row.airline or "—" }}</td>
+        <td>{% if row.booking_url %}<a href="{{ row.booking_url }}" target="_blank" rel="noreferrer">Abrir na cia</a>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="hint">Nenhum resultado ainda. Dispare uma busca acima.</p>
+  {% endif %}
+</section>
+{% endblock %}
+{% block scripts %}
+{% if search and search.status in ['queued', 'running'] %}
+<script>pollSearch({{ search.id }});</script>
+{% endif %}
+{% endblock %}

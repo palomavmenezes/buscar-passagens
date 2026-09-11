@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Viannas pelo Mundo{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,520;9..144,700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="nav-{{ nav|default('home') }}">
+  {% if nav != 'login' %}
+  <header class="mast">
+    <a class="brand" href="/">
+      <span>Viannas</span>
+      <em>pelo Mundo</em>
+    </a>
+    <nav>
+      <a href="/" class="{% if nav == 'home' %}on{% endif %}">Início</a>
+      <a href="/milhas" class="{% if nav == 'miles' %}on{% endif %}">Milhas</a>
+    </nav>
+    <form method="post" action="/logout"><button class="ghost" type="submit">Sair</button></form>
+  </header>
+  {% endif %}
+  <div class="frame">
+    {% block body %}{% endblock %}
+  </div>
+  <script src="/static/app.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
