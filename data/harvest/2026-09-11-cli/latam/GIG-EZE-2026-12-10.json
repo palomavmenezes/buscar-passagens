@@ -1,0 +1,763 @@
+{
+  "job": {
+    "origin": "GIG",
+    "destination": "EZE",
+    "program": "latam",
+    "offset": 90,
+    "day": "2026-12-10"
+  },
+  "status": "empty",
+  "url": "https://www.latamairlines.com/br/pt/oferta-voos?origin=GIG&outbound=2026-12-10T00:00:00.000Z&destination=EZE&adt=1&chd=0&inf=0&trip=OW&cabin=Economy&redemption=true&sort=RECOMMENDED",
+  "payload": {
+    "url": "https://www.latamairlines.com/br/pt/oferta-voos?origin=GIG&outbound=2026-12-10T00:00:00.000Z&destination=EZE&adt=1&chd=0&inf=0&trip=OW&cabin=Economy&redemption=true&sort=RECOMMENDED",
+    "network": [
+      "200 https://www.latamairlines.com/bff/air-offers/v2/calendar?origin=GIG&destination=EZE&month=12&year=2026&isRoundTrip=false",
+      "200 https://www.latamairlines.com/bff/air-offers/v2/calendar?origin=GIG&destination=EZE&month=11&year=2026&isRoundTrip=false&extended=true",
+      "200 https://www.latamairlines.com/bff/air-offers/v2/calendar?origin=GIG&destination=EZE&month=12&year=2026&isRoundTrip=false&extended=true"
+    ],
+    "bff_url": "https://www.latamairlines.com/bff/air-offers/v2/calendar?origin=GIG&destination=EZE&month=12&year=2026&isRoundTrip=false&extended=true",
+    "bff_status": 200,
+    "bff": {
+      "disabledDays": [],
+      "days": [
+        {
+          "calendar": [
+            {
+              "month": "2026-12",
+              "origin": "GIG",
+              "destination": "EZE",
+              "travelType": "ONEWAY",
+              "direction": "OUTBOUND",
+              "minimum": {
+                "amount": 575.08,
+                "currency": "BRL"
+              },
+              "maximum": {
+                "amount": 1525.1,
+                "currency": "BRL"
+              },
+              "average": {
+                "amount": 885,
+                "currency": "BRL"
+              },
+              "detailsCalendar": [
+                {
+                  "date": "2026-12-01",
+                  "fare": {
+                    "amount": 616.01,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "616",
+                  "percentile": 0.04,
+                  "enabled": true,
+                  "lowPrice": true
+                },
+                {
+                  "date": "2026-12-02",
+                  "fare": {
+                    "amount": 616.01,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "616",
+                  "percentile": 0.04,
+                  "enabled": true,
+                  "lowPrice": true
+                },
+                {
+                  "date": "2026-12-03",
+                  "fare": {
+                    "amount": 830.82,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "831",
+                  "percentile": 0.27,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2026-12-04",
+                  "fare": {
+                    "amount": 580.19,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "580",
+                  "percentile": 0.01,
+                  "enabled": true,
+                  "lowPrice": true
+                },
+                {
+                  "date": "2026-12-05",
+                  "fare": {
+                    "amount": 610.88,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "611",
+                  "percentile": 0.04,
+                  "enabled": true,
+                  "lowPrice": true
+                },
+                {
+                  "date": "2026-12-06",
+                  "fare": {
+                    "amount": 600.65,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "601",
+                  "percentile": 0.03,
+                  "enabled": true,
+                  "lowPrice": true
+                },
+                {
+                  "date": "2026-12-07",
+                  "fare": {
+                    "amount": 651.8,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "652",
+                  "percentile": 0.08,
+                  "enabled": true,
+                  "lowPrice": true
+                },
+                {
+                  "date": "2026-12-08",
+                  "fare": {
+                    "amount": 616.01,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "616",
+                  "percentile": 0.04,
+                  "enabled": true,
+                  "lowPrice": true
+                },
+                {
+                  "date": "2026-12-09",
+                  "fare": {
+                    "amount": 616.01,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "616",
+                  "percentile": 0.04,
+                  "enabled": true,
+                  "lowPrice": true
+                },
+                {
+                  "date": "2026-12-10",
+                  "fare": {
+                    "amount": 575.08,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "575",
+                  "percentile": 0,
+                  "enabled": true,
+                  "lowPrice": true
+                },
+                {
+                  "date": "2026-12-11",
+                  "fare": {
+                    "amount": 575.08,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "575",
+                  "percentile": 0,
+                  "enabled": true,
+                  "lowPrice": true
+                },
+                {
+                  "date": "2026-12-12",
+                  "fare": {
+                    "amount": 616.01,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "616",
+                  "percentile": 0.04,
+                  "enabled": true,
+                  "lowPrice": true
+                },
+                {
+                  "date": "2026-12-13",
+                  "fare": {
+                    "amount": 830.82,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "831",
+                  "percentile": 0.27,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2026-12-14",
+                  "fare": {
+                    "amount": 600.65,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "601",
+                  "percentile": 0.03,
+                  "enabled": true,
+                  "lowPrice": true
+                },
+                {
+                  "date": "2026-12-15",
+                  "fare": {
+                    "amount": 871.75,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "872",
+                  "percentile": 0.31,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2026-12-16",
+                  "fare": {
+                    "amount": 871.75,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "872",
+                  "percentile": 0.31,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2026-12-17",
+                  "fare": {
+                    "amount": 575.08,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "575",
+                  "percentile": 0,
+                  "enabled": true,
+                  "lowPrice": true
+                },
+                {
+                  "date": "2026-12-18",
+                  "fare": {
+                    "amount": 830.82,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "831",
+                  "percentile": 0.27,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2026-12-19",
+                  "fare": {
+                    "amount": 830.82,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "831",
+                  "percentile": 0.27,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2026-12-20",
+                  "fare": {
+                    "amount": 830.82,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "831",
+                  "percentile": 0.27,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2026-12-21",
+                  "fare": {
+                    "amount": 830.82,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "831",
+                  "percentile": 0.27,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2026-12-22",
+                  "fare": {
+                    "amount": 871.75,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "872",
+                  "percentile": 0.31,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2026-12-23",
+                  "fare": {
+                    "amount": 871.75,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "872",
+                  "percentile": 0.31,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2026-12-24",
+                  "fare": {
+                    "amount": 871.75,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "872",
+                  "percentile": 0.31,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2026-12-25",
+                  "fare": {
+                    "amount": 830.82,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "831",
+                  "percentile": 0.27,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2026-12-26",
+                  "fare": {
+                    "amount": 1115.91,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "1,1K",
+                  "percentile": 0.57,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2026-12-27",
+                  "fare": {
+                    "amount": 963.81,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "964",
+                  "percentile": 0.41,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2026-12-28",
+                  "fare": {
+                    "amount": 830.82,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "831",
+                  "percentile": 0.27,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2026-12-29",
+                  "fare": {
+                    "amount": 897.31,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "897",
+                  "percentile": 0.34,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2026-12-30",
+                  "fare": {
+                    "amount": 830.82,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "831",
+                  "percentile": 0.27,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2026-12-31",
+                  "fare": {
+                    "amount": 830.82,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "831",
+                  "percentile": 0.27,
+                  "enabled": true,
+                  "lowPrice": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "calendar": [
+            {
+              "month": "2027-01",
+              "origin": "GIG",
+              "destination": "EZE",
+              "travelType": "ONEWAY",
+              "direction": "OUTBOUND",
+              "minimum": {
+                "amount": 575.08,
+                "currency": "BRL"
+              },
+              "maximum": {
+                "amount": 1525.1,
+                "currency": "BRL"
+              },
+              "average": {
+                "amount": 885,
+                "currency": "BRL"
+              },
+              "detailsCalendar": [
+                {
+                  "date": "2027-01-01",
+                  "fare": {
+                    "amount": 911.31,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "911",
+                  "percentile": 0.35,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2027-01-02",
+                  "fare": {
+                    "amount": 1525.1,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "1,5K",
+                  "percentile": 1,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2027-01-03",
+                  "fare": {
+                    "amount": 1525.1,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "1,5K",
+                  "percentile": 1,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2027-01-04",
+                  "fare": {
+                    "amount": 1115.91,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "1,1K",
+                  "percentile": 0.57,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2027-01-05",
+                  "fare": {
+                    "amount": 1117.25,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "1,1K",
+                  "percentile": 0.57,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2027-01-06",
+                  "fare": {
+                    "amount": 1055.88,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "1,1K",
+                  "percentile": 0.51,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2027-01-07",
+                  "fare": {
+                    "amount": 830.82,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "831",
+                  "percentile": 0.27,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2027-01-08",
+                  "fare": {
+                    "amount": 830.82,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "831",
+                  "percentile": 0.27,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2027-01-09",
+                  "fare": {
+                    "amount": 1115.91,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "1,1K",
+                  "percentile": 0.57,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2027-01-10",
+                  "fare": {
+                    "amount": 1147.94,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "1,1K",
+                  "percentile": 0.6,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2027-01-11",
+                  "fare": {
+                    "amount": 871.75,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "872",
+                  "percentile": 0.31,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2027-01-12",
+                  "fare": {
+                    "amount": 1091.68,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "1,1K",
+                  "percentile": 0.54,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2027-01-13",
+                  "fare": {
+                    "amount": 1311.63,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "1,3K",
+                  "percentile": 0.78,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2027-01-14",
+                  "fare": {
+                    "amount": 1035.42,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "1K",
+                  "percentile": 0.48,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2027-01-15",
+                  "fare": {
+                    "amount": 1228.43,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "1,2K",
+                  "percentile": 0.69,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2027-01-16",
+                  "fare": {
+                    "amount": 1147.94,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "1,1K",
+                  "percentile": 0.6,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2027-01-17",
+                  "fare": {
+                    "amount": 1147.94,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "1,1K",
+                  "percentile": 0.6,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2027-01-18",
+                  "fare": {
+                    "amount": 963.81,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "964",
+                  "percentile": 0.41,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2027-01-19",
+                  "fare": {
+                    "amount": 911.31,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "911",
+                  "percentile": 0.35,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2027-01-20",
+                  "fare": {
+                    "amount": 1035.42,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "1K",
+                  "percentile": 0.48,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2027-01-21",
+                  "fare": {
+                    "amount": 907.54,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "908",
+                  "percentile": 0.35,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2027-01-22",
+                  "fare": {
+                    "amount": 1270.7,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "1,3K",
+                  "percentile": 0.73,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2027-01-23",
+                  "fare": {
+                    "amount": 963.81,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "964",
+                  "percentile": 0.41,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2027-01-24",
+                  "fare": {
+                    "amount": 1147.94,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "1,1K",
+                  "percentile": 0.6,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2027-01-25",
+                  "fare": {
+                    "amount": 1224.68,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "1,2K",
+                  "percentile": 0.68,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2027-01-26",
+                  "fare": {
+                    "amount": 1035.42,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "1K",
+                  "percentile": 0.48,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2027-01-27",
+                  "fare": {
+                    "amount": 1035.42,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "1K",
+                  "percentile": 0.48,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2027-01-28",
+                  "fare": {
+                    "amount": 1485.54,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "1,5K",
+                  "percentile": 0.96,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2027-01-29",
+                  "fare": {
+                    "amount": 907.54,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "908",
+                  "percentile": 0.35,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2027-01-30",
+                  "fare": {
+                    "amount": 1351.19,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "1,4K",
+                  "percentile": 0.82,
+                  "enabled": true,
+                  "lowPrice": false
+                },
+                {
+                  "date": "2027-01-31",
+                  "fare": {
+                    "amount": 1393.46,
+                    "currency": "BRL"
+                  },
+                  "formattedAmount": "1,4K",
+                  "percentile": 0.86,
+                  "enabled": true,
+                  "lowPrice": false
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "normalized": {
+      "redemption": true,
+      "items": [],
+      "source": "latam-local"
+    }
+  }
+}

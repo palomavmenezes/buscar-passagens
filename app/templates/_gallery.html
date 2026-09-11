@@ -1,0 +1,28 @@
+{% if items %}
+<div class="gallery">
+  {% for item in items %}
+  <article class="place-card">
+    <a class="place-hit" href="/milhas?origem={{ item.origin }}&origin={{ item.origin }}&destination={{ item.destination }}#lista" aria-label="Ver passagens em milhas para {{ item.city }}"></a>
+    <img src="{{ item.image }}" alt="{{ item.city }}" loading="lazy"
+         onerror="this.onerror=null;this.src='https://loremflickr.com/960/620/{{ item.city }},travel';">
+    <div class="place-shade"></div>
+    <div class="place-meta">
+      <p class="place-kicker">{{ 'Nacional' if item.national else 'Internacional' }} · {{ item.origin }} → {{ item.destination }}</p>
+      <h3>{{ item.city }}</h3>
+      <div class="place-prices">
+        {% if item.miles %}
+        <a class="price-miles" href="/milhas?origem={{ item.origin }}&origin={{ item.origin }}&destination={{ item.destination }}#lista">
+          {{ item.miles|milhas }} milhas
+          <small>
+            {{ program_labels.get(item.miles_program, item.miles_program or '') }}
+            {% if item.miles_return %} · ida + volta{% else %} · só ida{% endif %}
+            · {{ item.miles_date|voo(item.miles_time, item.miles_arrival) }}
+          </small>
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </article>
+  {% endfor %}
+</div>
+{% endif %}

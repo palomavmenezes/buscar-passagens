@@ -1,0 +1,45 @@
+{
+  "job": {
+    "origin": "GRU",
+    "destination": "REC",
+    "program": "latam",
+    "offset": 30,
+    "day": "2026-10-11"
+  },
+  "status": "empty",
+  "url": "https://www.latamairlines.com/br/pt/oferta-voos?origin=GRU&outbound=2026-10-11T00:00:00.000Z&destination=REC&adt=1&chd=0&inf=0&trip=OW&cabin=Economy&redemption=true&sort=RECOMMENDED",
+  "payload": {
+    "url": "https://www.latamairlines.com/br/pt/oferta-voos?origin=GRU&outbound=2026-10-11T00:00:00.000Z&destination=REC&adt=1&chd=0&inf=0&trip=OW&cabin=Economy&redemption=true&sort=RECOMMENDED",
+    "network": [
+      "200 https://www.latamairlines.com/bff/air-offers/v2/calendar?origin=GRU&destination=REC&month=10&year=2026&isRoundTrip=false"
+    ],
+    "bff_url": "https://www.latamairlines.com/bff/air-offers/v2/calendar?origin=GRU&destination=REC&month=10&year=2026&isRoundTrip=false",
+    "bff_status": 200,
+    "bff": {
+      "content": [],
+      "empty": true,
+      "first": true,
+      "last": true,
+      "number": 0,
+      "numberOfElements": 0,
+      "pageable": "RINSTANCE",
+      "size": 0,
+      "sort": {
+        "empty": true,
+        "sorted": false,
+        "unsorted": true
+      },
+      "totalElements": 0,
+      "totalPages": 1,
+      "extraDetails": {
+        "X-latam-Track-Id": "63566e37-eba1-4477-9a7e-2962fd6cc84a",
+        "X-latam-App-Session-Id": "3aeeda08-04ad-4527-b5b2-da21dffccc09"
+      }
+    },
+    "normalized": {
+      "redemption": true,
+      "items": [],
+      "source": "latam-local"
+    }
+  }
+}

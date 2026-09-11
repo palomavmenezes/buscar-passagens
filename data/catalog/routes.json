@@ -1,0 +1,162 @@
+{
+  "origins": ["GIG"],
+  "date_offsets": [30, 90],
+  "invert": true,
+  "outbound_only": true,
+  "one_offset_per_run": true,
+  "max_per_run": 6,
+  "regions": [
+    {
+      "id": "italia",
+      "label": "Itália",
+      "kind": "international",
+      "airports": [
+        {"iata": "FCO", "city": "Roma"},
+        {"iata": "MXP", "city": "Milão"}
+      ]
+    },
+    {
+      "id": "espanha",
+      "label": "Espanha",
+      "kind": "international",
+      "airports": [
+        {"iata": "MAD", "city": "Madrid"},
+        {"iata": "BCN", "city": "Barcelona"}
+      ]
+    },
+    {
+      "id": "portugal",
+      "label": "Portugal",
+      "kind": "international",
+      "airports": [
+        {"iata": "LIS", "city": "Lisboa"},
+        {"iata": "OPO", "city": "Porto"}
+      ]
+    },
+    {
+      "id": "alemanha",
+      "label": "Alemanha",
+      "kind": "international",
+      "airports": [
+        {"iata": "FRA", "city": "Frankfurt"},
+        {"iata": "BER", "city": "Berlim"},
+        {"iata": "MUC", "city": "Munique"}
+      ]
+    },
+    {
+      "id": "franca",
+      "label": "França",
+      "kind": "international",
+      "airports": [
+        {"iata": "CDG", "city": "Paris"}
+      ]
+    },
+    {
+      "id": "estados-unidos",
+      "label": "Estados Unidos",
+      "kind": "international",
+      "airports": [
+        {"iata": "MIA", "city": "Miami"},
+        {"iata": "JFK", "city": "Nova Iorque"},
+        {"iata": "MCO", "city": "Orlando"}
+      ]
+    },
+    {
+      "id": "chile",
+      "label": "Chile",
+      "kind": "international",
+      "airports": [
+        {"iata": "SCL", "city": "Santiago"}
+      ]
+    },
+    {
+      "id": "reino-unido",
+      "label": "Reino Unido",
+      "kind": "international",
+      "airports": [
+        {"iata": "LHR", "city": "Londres"}
+      ]
+    },
+    {
+      "id": "argentina",
+      "label": "Argentina",
+      "kind": "international",
+      "airports": [
+        {"iata": "BRC", "city": "Bariloche"},
+        {"iata": "EZE", "city": "Buenos Aires"}
+      ]
+    },
+    {
+      "id": "japao",
+      "label": "Japão",
+      "kind": "international",
+      "airports": [
+        {"iata": "NRT", "city": "Tóquio"}
+      ]
+    },
+    {
+      "id": "china",
+      "label": "China",
+      "kind": "international",
+      "airports": [
+        {"iata": "PEK", "city": "Pequim"},
+        {"iata": "PVG", "city": "Xangai"}
+      ]
+    },
+    {
+      "id": "nordeste",
+      "label": "Nordeste",
+      "kind": "national",
+      "airports": [
+        {"iata": "REC", "city": "Recife"},
+        {"iata": "AJU", "city": "Aracaju"},
+        {"iata": "FOR", "city": "Fortaleza"},
+        {"iata": "SSA", "city": "Salvador"},
+        {"iata": "BPS", "city": "Porto Seguro"},
+        {"iata": "SLZ", "city": "São Luís"},
+        {"iata": "JPA", "city": "João Pessoa"},
+        {"iata": "NAT", "city": "Natal"}
+      ]
+    },
+    {
+      "id": "norte",
+      "label": "Norte",
+      "kind": "national",
+      "airports": [
+        {"iata": "BEL", "city": "Belém"},
+        {"iata": "MAO", "city": "Manaus"}
+      ]
+    },
+    {
+      "id": "centro-oeste",
+      "label": "Centro-Oeste",
+      "kind": "national",
+      "airports": [
+        {"iata": "BSB", "city": "Brasília"}
+      ]
+    },
+    {
+      "id": "sudeste",
+      "label": "Sudeste",
+      "kind": "national",
+      "airports": [
+        {"iata": "VIX", "city": "Vitória"},
+        {"iata": "CGH", "city": "São Paulo Congonhas"},
+        {"iata": "GRU", "city": "São Paulo Guarulhos"},
+        {"iata": "VCP", "city": "São Paulo Viracopos"},
+        {"iata": "CNF", "city": "Belo Horizonte"}
+      ]
+    },
+    {
+      "id": "sul",
+      "label": "Sul",
+      "kind": "national",
+      "airports": [
+        {"iata": "POA", "city": "Porto Alegre"},
+        {"iata": "FLN", "city": "Florianópolis"},
+        {"iata": "CWB", "city": "Curitiba"},
+        {"iata": "NVT", "city": "Navegantes"}
+      ]
+    }
+  ]
+}
