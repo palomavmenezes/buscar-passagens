@@ -1,0 +1,14 @@
+.venv/
+.vendor/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.env
+data/*.db
+data/*.xlsx
+data/catalog/snapshots/
+data/latam-profile/
+data/latam-chrome-profile/
+data/playwright-browsers/
+.DS_Store
+node_modules/

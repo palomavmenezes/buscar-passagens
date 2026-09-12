@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block body %}
+<section class="hero">
+  <p class="kicker">Saindo de</p>
+  <h1>{{ active_origin }}</h1>
+  <p class="lede">Busque primeiro. Os cards só aparecem quando já existe preço em milhas.</p>
+  <div class="origin-switch">
+    {% for code in origins %}
+    <a class="{% if code == active_origin %}on{% endif %}" href="/?origem={{ code }}">{{ code }}</a>
+    {% endfor %}
+  </div>
+</section>
+
+{% include "_harvest.html" %}
+
+{% with kind='miles', origins_value=origins|join(', ') %}
+{% include "_search.html" %}
+{% endwith %}
+
+{% if cards.national or cards.international %}
+<div class="split">
+  {% if cards.national %}
+  <section>
+    <div class="section-head">
+      <div>
+        <p class="kicker">Encontrados</p>
+        <h2>Nacionais</h2>
+      </div>
+    </div>
+    {% with items=cards.national %}{% include "_gallery.html" %}{% endwith %}
+  </section>
+  {% endif %}
+  {% if cards.international %}
+  <section>
+    <div class="section-head">
+      <div>
+        <p class="kicker">Encontrados</p>
+        <h2>Internacionais</h2>
+      </div>
+    </div>
+    {% with items=cards.international %}{% include "_gallery.html" %}{% endwith %}
+  </section>
+  {% endif %}
+</div>
+{% else %}
+<p class="hint">Ainda não há destinos com valor para {{ active_origin }}. Dispare uma busca acima.</p>
+{% endif %}
+{% endblock %}
