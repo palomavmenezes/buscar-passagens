@@ -22,8 +22,15 @@ MAX_FLEX_DAYS = 180
 MAX_YEAR_DAYS = 365
 DATE_MODES = ("flex", "year", "month", "specific")
 
-HARVEST_DIR = DATA_DIR / "harvest"
-HARVEST_DIR.mkdir(exist_ok=True)
+_harvest_raw = os.getenv("HARVEST_DIR", "").strip()
+if _harvest_raw:
+    _harvest_path = Path(_harvest_raw).expanduser()
+    HARVEST_DIR = (
+        _harvest_path if _harvest_path.is_absolute() else (ROOT / _harvest_path).resolve()
+    )
+else:
+    HARVEST_DIR = DATA_DIR / "harvest"
+HARVEST_DIR.mkdir(parents=True, exist_ok=True)
 HARVEST_HOURS = tuple(
     int(part.strip())
     for part in os.getenv("HARVEST_HOURS", "0,12").split(",")

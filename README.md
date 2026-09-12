@@ -19,7 +19,11 @@ Não há API paga, busca em dinheiro nem Seats.aero. GIG e SDU na mesma rota vir
 3. Os cards só aparecem com milhas reais
 4. Em ida e volta, o número é dos **dois trechos juntos**
 
-O painel **não** consulta milhas a cada clique. Às **00h** e **12h** o coletor grava `data/harvest/` no site de cada cia que já tiver sessão.
+O painel **não** consulta milhas a cada clique. Às **00h** e **12h** o coletor grava `data/harvest/` no site de cada cia que já tiver sessão. Esses JSON ficam no repositório **privado** [buscar-passagens-dados](https://github.com/palomavmenezes/buscar-passagens-dados):
+
+```bash
+git clone https://github.com/palomavmenezes/buscar-passagens-dados.git data/harvest
+```
 
 Pedido pontual:
 
