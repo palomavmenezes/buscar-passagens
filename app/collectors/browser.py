@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from app.airports import expand_city_airports
-from app.config import CIA_HEADLESS, CIA_PAUSE_SECONDS, DATA_DIR
+from app.config import CIA_HEADLESS, CIA_PAUSE_SECONDS, DATA_DIR, harvest_route_path
 from app.providers.base import Offer
 
 os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(DATA_DIR / "playwright-browsers"))
@@ -473,8 +473,7 @@ async def collect_home_jobs(
             url = booking_url(origin, dest, day, return_day)
             if save_raw:
                 slim = {k: v for k, v in payload.items() if k not in {"bff", "dom_text"}}
-                suffix = f"{origin}-{dest}-{day}" + (f"-{return_day}" if return_day else "")
-                file_path = raw_dir / f"miles-{suffix}.json"
+                file_path = harvest_route_path(raw_dir, origin, dest, day)
                 keep_old = False
                 if not compact and file_path.exists():
                     try:
@@ -483,6 +482,7 @@ async def collect_home_jobs(
                     except (OSError, json.JSONDecodeError):
                         keep_old = False
                 if not keep_old:
+                    file_path.parent.mkdir(parents=True, exist_ok=True)
                     file_path.write_text(
                         json.dumps(
                             {"job": job, "status": status, "url": url, "offers": compact, "payload": slim},

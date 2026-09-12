@@ -14,6 +14,7 @@ from app.config import (
     HARVEST_HOURS,
     HARVEST_ORIGINS,
     HARVEST_PROGRAMS,
+    HARVEST_STATE_DIR,
     HARVEST_TZ,
     LATAM_MAX_PER_RUN,
     LATAM_MAX_ROUTES,
@@ -26,12 +27,11 @@ from app.collectors.latam import collect_latam_jobs, latam_session_ready
 from app.collectors.smiles import collect_smiles_jobs, smiles_session_ready
 from app.db import create_search, insert_results, now_iso, query_results, replace_miles_route, update_search
 
-CURSOR_PATH = HARVEST_DIR / "cursor.json"
-LATAM_CURSOR_PATH = HARVEST_DIR / "cursor-latam.json"
-AZUL_CURSOR_PATH = HARVEST_DIR / "cursor-azul.json"
-SMILES_CURSOR_PATH = HARVEST_DIR / "cursor-smiles.json"
-RUNS_PATH = HARVEST_DIR / "runs.json"
-LATEST_PATH = HARVEST_DIR / "LATEST"
+LATAM_CURSOR_PATH = HARVEST_STATE_DIR / "cursor-latam.json"
+AZUL_CURSOR_PATH = HARVEST_STATE_DIR / "cursor-azul.json"
+SMILES_CURSOR_PATH = HARVEST_STATE_DIR / "cursor-smiles.json"
+RUNS_PATH = HARVEST_STATE_DIR / "runs.json"
+ULTIMA_PATH = HARVEST_STATE_DIR / "ultima.json"
 LOCK = asyncio.Lock()
 
 
@@ -92,7 +92,7 @@ def take_jobs(
         jobs = [job for job in jobs if job["program"] in wanted]
     if not jobs or count <= 0:
         return []
-    path = cursor_path or CURSOR_PATH
+    path = cursor_path or LATAM_CURSOR_PATH
     state = _read_json(path, {"index": 0})
     index = int(state.get("index") or 0) % len(jobs)
     chosen = []
@@ -105,19 +105,9 @@ def take_jobs(
     return chosen
 
 
-async def fetch_credits(client=None) -> dict[str, Any] | None:
-    return None
-
-
-def latest_manifest() -> dict[str, Any] | None:
-    latest = LATEST_PATH.read_text(encoding="utf-8").strip() if LATEST_PATH.exists() else ""
-    if not latest:
-        return None
-    path = HARVEST_DIR / latest / "manifest.json"
-    data = _read_json(path, None)
-    if isinstance(data, dict):
-        data["folder"] = latest
-    return data
+def latest_run() -> dict[str, Any] | None:
+    data = _read_json(ULTIMA_PATH, None)
+    return data if isinstance(data, dict) else None
 
 
 def already_ran(day: str, slot: str) -> bool:
@@ -147,14 +137,14 @@ def next_slots(now: datetime | None = None) -> list[str]:
 
 
 def harvest_status() -> dict[str, Any]:
-    manifest = latest_manifest()
+    last = latest_run()
     return {
         "hours": list(HARVEST_HOURS),
         "max_requests": min(LATAM_MAX_ROUTES, LATAM_MAX_PER_RUN),
         "origins": HARVEST_ORIGINS,
         "destinations": HARVEST_DESTINATIONS,
         "programs": HARVEST_PROGRAMS,
-        "last": manifest,
+        "last": last,
         "next": next_slots(),
         "folder": str(HARVEST_DIR),
         "has_key": has_live_cia_miles(),
@@ -200,12 +190,24 @@ def offers_from_cache(
     return list(best.values())
 
 
+def _save_ultima(local: datetime, slot: str, **extra: Any) -> dict[str, Any]:
+    payload = {
+        "slot": slot,
+        "label": local.strftime("%d/%m %H:%M"),
+        "started_at": extra.get("started_at") or now_iso(),
+        "finished_at": now_iso(),
+        "offers": extra.get("offers") or 0,
+        "requests": extra.get("requests") or 0,
+        "stopped": extra.get("stopped"),
+        **{key: value for key, value in extra.items() if key not in {"started_at", "offers", "requests", "stopped"}},
+    }
+    _write_json(ULTIMA_PATH, payload)
+    return payload
+
+
 async def run_harvest(slot: str) -> dict[str, Any]:
     async with LOCK:
         local = now_local()
-        folder_name = f"{local.strftime('%Y-%m-%d')}-{slot}"
-        folder = HARVEST_DIR / folder_name
-        folder.mkdir(parents=True, exist_ok=True)
         notes: list[str] = []
         latam_jobs: list[dict[str, Any]] = []
         azul_jobs: list[dict[str, Any]] = []
@@ -228,19 +230,16 @@ async def run_harvest(slot: str) -> dict[str, Any]:
 
         all_jobs = latam_jobs + azul_jobs + smiles_jobs
         if not all_jobs:
-            manifest = {
-                "slot": slot,
-                "folder": folder_name,
-                "started_at": now_iso(),
-                "finished_at": now_iso(),
-                "planned": 0,
-                "requests": 0,
-                "offers": 0,
-                "stopped": "; ".join(notes) or "nada para coletar",
-                "jobs": [],
-            }
-            _write_json(folder / "manifest.json", manifest)
-            return {"ok": False, **manifest}
+            summary = _save_ultima(
+                local,
+                slot,
+                planned=0,
+                requests=0,
+                offers=0,
+                stopped="; ".join(notes) or "nada para coletar",
+                jobs=[],
+            )
+            return {"ok": False, **summary}
 
         search_id = create_search(
             {
@@ -266,8 +265,6 @@ async def run_harvest(slot: str) -> dict[str, Any]:
         offers_count = 0
         stopped = None
         log: list[dict[str, Any]] = []
-        offers_path = folder / "offers.jsonl"
-        offers_path.write_text("", encoding="utf-8")
 
         def persist(job: dict[str, Any], offers: list, status: Any, file_name: str) -> None:
             nonlocal saved, offers_count
@@ -278,9 +275,6 @@ async def run_harvest(slot: str) -> dict[str, Any]:
                         if origin_code != dest_code:
                             replace_miles_route(origin_code, dest_code, job["day"], job["program"])
                 insert_results(rows)
-                with offers_path.open("a", encoding="utf-8") as handle:
-                    for row in rows:
-                        handle.write(json.dumps(row, ensure_ascii=False) + "\n")
                 offers_count += len(rows)
             saved += 1
             log.append(
@@ -295,12 +289,12 @@ async def run_harvest(slot: str) -> dict[str, Any]:
                 }
             )
 
-        async def run_local(title: str, jobs: list[dict[str, Any]], collect, folder_name: str) -> None:
+        async def run_local(title: str, jobs: list[dict[str, Any]], collect, program: str) -> None:
             nonlocal stopped
             if not jobs:
                 return
             update_search(search_id, progress=f"Coleta {title} no site da cia ({len(jobs)} rotas)")
-            dest = folder / folder_name
+            dest = HARVEST_DIR / program
             try:
                 collected = await collect(jobs, dest)
             except Exception as exc:
@@ -309,7 +303,11 @@ async def run_harvest(slot: str) -> dict[str, Any]:
                 return
             for item in collected:
                 job = item["job"]
-                relative = str(Path(item.get("file") or dest).relative_to(HARVEST_DIR))
+                file_path = Path(item.get("file") or dest)
+                try:
+                    relative = str(file_path.relative_to(HARVEST_DIR))
+                except ValueError:
+                    relative = str(file_path)
                 persist(job, item.get("offers") or [], item.get("status"), relative)
                 if item.get("status") in {"login", "app_error", "denied", "throttled"}:
                     reason = f"{title} parou ({item.get('status')})"
@@ -321,27 +319,24 @@ async def run_harvest(slot: str) -> dict[str, Any]:
         await run_local("Azul", azul_jobs, collect_azul_jobs, "azul")
         await run_local("GOL/Smiles", smiles_jobs, collect_smiles_jobs, "smiles")
 
-        manifest = {
-            "slot": slot,
-            "folder": folder_name,
-            "started_at": found_at,
-            "finished_at": now_iso(),
-            "search_id": search_id,
-            "planned": len(all_jobs),
-            "requests": saved,
-            "offers": offers_count,
-            "stopped": stopped or ("; ".join(notes) if notes else None),
-            "jobs": log,
-        }
-        _write_json(folder / "manifest.json", manifest)
-        LATEST_PATH.write_text(folder_name, encoding="utf-8")
+        summary = _save_ultima(
+            local,
+            slot,
+            started_at=found_at,
+            search_id=search_id,
+            planned=len(all_jobs),
+            requests=saved,
+            offers=offers_count,
+            stopped=stopped or ("; ".join(notes) if notes else None),
+            jobs=log,
+        )
         if slot in {f"{hour:02d}" for hour in HARVEST_HOURS} or slot in {"00", "12"}:
             mark_ran(local.strftime("%Y-%m-%d"), slot)
         progress = f"Coleta {slot}: {offers_count} ofertas em {saved} rotas"
         if stopped:
             progress += f" · {stopped}"
         update_search(search_id, status="done", progress=progress, error=None)
-        return {"ok": True, **manifest}
+        return {"ok": True, **summary}
 
 
 async def harvest_scheduler() -> None:

@@ -25,6 +25,8 @@ O painel **não** consulta milhas a cada clique. Às **00h** e **12h** o coletor
 git clone https://github.com/palomavmenezes/buscar-passagens-dados.git data/harvest
 ```
 
+Os arquivos ficam assim: `latam/2026-10-11/GIG-SSA.json` (cia → data da passagem → trecho).
+
 Pedido pontual:
 
 ```bash

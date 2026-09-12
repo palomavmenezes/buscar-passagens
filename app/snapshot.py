@@ -11,31 +11,36 @@ from app.catalog import SNAPSHOT_DIR, catalog_airports, collapse_rio_jobs, load_
 from app.collectors.azul import azul_session_ready, collect_azul_jobs
 from app.collectors.latam import collect_latam_jobs, latam_session_ready
 from app.collectors.smiles import collect_smiles_jobs, smiles_session_ready
-from app.config import LATAM_MAX_PER_RUN
+from app.config import HARVEST_DIR, LATAM_MAX_PER_RUN, harvest_route_path
 from app.db import create_search, insert_results, now_iso, query_results, replace_miles_route, update_search
 from app.providers.base import Offer
 
 LATEST_SNAPSHOT = SNAPSHOT_DIR / "latest.json"
 
 
-def pending_jobs(jobs: list[dict[str, Any]], folder: Path, kind: str) -> list[dict[str, Any]]:
-    done: set[tuple[str, str, str]] = set()
-    if folder.exists():
-        for path in folder.glob(f"{kind}-*.json"):
-            try:
-                payload = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
-                continue
-            status = payload.get("status")
-            offers = payload.get("offers") or []
-            job = payload.get("job") or {}
-            key = (job.get("origin"), job.get("destination"), job.get("day"), job.get("return_day") or job.get("return_date") or "")
-            if not all(key[:3]):
-                continue
-            if status in {200, "ok"} and offers:
-                done.add(key)
-            elif status == "empty":
-                done.add(key)
+def pending_jobs(jobs: list[dict[str, Any]], folder: Path) -> list[dict[str, Any]]:
+    done: set[tuple[str, str, str, str]] = set()
+    for job in jobs:
+        path = harvest_route_path(folder, job["origin"], job["destination"], job["day"])
+        if not path.exists():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        status = payload.get("status")
+        offers = payload.get("offers") or []
+        saved = payload.get("job") or {}
+        key = (
+            saved.get("origin") or job["origin"],
+            saved.get("destination") or job["destination"],
+            saved.get("day") or job["day"],
+            saved.get("return_day") or saved.get("return_date") or job.get("return_day") or job.get("return_date") or "",
+        )
+        if status in {200, "ok"} and offers:
+            done.add(key)
+        elif status == "empty":
+            done.add(key)
     return [
         job
         for job in jobs
@@ -235,8 +240,8 @@ async def run_snapshot(
             if not ready():
                 notes.append(f"{title}: faça login com {login_cmd}")
                 continue
-            miles_dir = folder / f"{program}-milhas"
-            pending = pending_jobs(planned, miles_dir, "miles")
+            miles_dir = HARVEST_DIR / program
+            pending = pending_jobs(planned, miles_dir)
             batches = take_run(pending, limit, keep_order=keep_order)
             print(
                 f"{title}: {len(planned)} trechos no total, {len(pending)} ainda pendentes, {limit} nesta rodada.",
