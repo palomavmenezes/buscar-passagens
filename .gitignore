@@ -6,7 +6,6 @@ __pycache__/
 .env
 data/*.db
 data/*.xlsx
-data/catalog/snapshots/
 data/harvest/
 data/coleta-estado/
 data/latam-profile/

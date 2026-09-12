@@ -2,20 +2,17 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from app.airports import city_name, expand_city_airports
-from app.catalog import SNAPSHOT_DIR, catalog_airports, collapse_rio_jobs, load_catalog, requested_jobs, snapshot_queue
+from app.catalog import catalog_airports, collapse_rio_jobs, load_catalog, requested_jobs, snapshot_queue
 from app.collectors.azul import azul_session_ready, collect_azul_jobs
 from app.collectors.latam import collect_latam_jobs, latam_session_ready
 from app.collectors.smiles import collect_smiles_jobs, smiles_session_ready
 from app.config import HARVEST_DIR, LATAM_MAX_PER_RUN, harvest_route_path
 from app.db import create_search, insert_results, now_iso, query_results, replace_miles_route, update_search
 from app.providers.base import Offer
-
-LATEST_SNAPSHOT = SNAPSHOT_DIR / "latest.json"
 
 
 def pending_jobs(jobs: list[dict[str, Any]], folder: Path) -> list[dict[str, Any]]:
@@ -137,44 +134,13 @@ def records_from_db(origin: str | None = None) -> list[dict[str, Any]]:
     return records
 
 
-def seed_latest_from_db() -> Path:
-    catalog = load_catalog()
+def seed_latest_from_db() -> dict[str, Any]:
     records = records_from_db()
-    folder = SNAPSHOT_DIR / "from-db"
-    return write_snapshot(
-        {
-            "generated_at": now_iso(),
-            "origins": catalog.get("origins") or ["GIG"],
-            "dates": sorted({item.get("departure_date") for item in records if item.get("departure_date")}),
-            "pairs": len({(item.get("origin"), item.get("destination")) for item in records}),
-            "jobs": len(records),
-            "notes": ["Espelho do que já está no banco; sem nova busca nas cias."],
-            "records": records,
-        },
-        folder,
-    )
-
-
-def write_snapshot(payload: dict[str, Any], folder: Path) -> Path:
-    folder.mkdir(parents=True, exist_ok=True)
-    miles = sort_records(payload.get("records") or [])
-    document = {
-        "generated_at": payload.get("generated_at"),
-        "folder": str(folder),
-        "origins": payload.get("origins"),
-        "dates": payload.get("dates"),
-        "notes": payload.get("notes") or [],
-        "counts": {
-            "pairs": payload.get("pairs"),
-            "jobs": payload.get("jobs"),
-            "milhas": len(miles),
-        },
-        "milhas": miles,
+    return {
+        "ok": True,
+        "milhas": len(sort_records(records)),
+        "notes": ["Os cards leem o banco; sem pasta extra de snapshot."],
     }
-    path = folder / "precos.json"
-    path.write_text(json.dumps(document, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    LATEST_SNAPSHOT.write_text(json.dumps(document, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    return path
 
 
 async def run_snapshot(
@@ -188,20 +154,7 @@ async def run_snapshot(
     if planned:
         planned = collapse_rio_jobs(planned)
     notes: list[str] = []
-    records: list[dict[str, Any]] = []
-    today_prefix = datetime.now().strftime("%Y-%m-%d")
-    existing = sorted(SNAPSHOT_DIR.glob(f"{today_prefix}-*"))
-    folder = existing[-1] if existing else SNAPSHOT_DIR / datetime.now().strftime("%Y-%m-%d-%H%M")
-    folder.mkdir(parents=True, exist_ok=True)
-    previous = folder / "precos.json"
-    if previous.exists():
-        try:
-            old = json.loads(previous.read_text(encoding="utf-8"))
-            records.extend(old.get("milhas") or [])
-        except (OSError, json.JSONDecodeError):
-            pass
-    if not records:
-        records.extend(records_from_db())
+    records: list[dict[str, Any]] = records_from_db()
     if not planned:
         return {"ok": False, "error": "nenhum trecho neste pedido", "milhas": 0, "notes": []}
     origins = sorted({job["origin"] for job in planned})
@@ -229,13 +182,6 @@ async def run_snapshot(
             ("smiles", "GOL/Smiles", smiles_session_ready, collect_smiles_jobs, "python3 -m app.collectors.smiles login"),
         ]
         limit = max_per_run or int(catalog.get("max_per_run") or LATAM_MAX_PER_RUN)
-        snapshot_meta = {
-            "generated_at": found_at,
-            "origins": origins,
-            "dates": sorted({job["day"] for job in planned}),
-            "pairs": len({(job["origin"], job["destination"]) for job in planned}),
-            "jobs": len(planned),
-        }
         for program, title, ready, collect, login_cmd in airlines:
             if not ready():
                 notes.append(f"{title}: faça login com {login_cmd}")
@@ -267,7 +213,6 @@ async def run_snapshot(
                         insert_results([offer.as_row(search_id, found_at) for offer in offers])
                         for offer in offers:
                             records.append(offer_record(offer, {"region": job.get("region_label"), "kind": job.get("kind")}))
-                        write_snapshot({**snapshot_meta, "notes": notes, "records": records}, folder)
                         cheapest = min(offers, key=lambda item: item.miles or 10**9)
                         print(
                             f"Salvo {current_title} {job['origin']}-{job['destination']} {job['day']}: {cheapest.miles} milhas ({cheapest.airline})",
@@ -290,18 +235,6 @@ async def run_snapshot(
                     break
                 del collected
 
-    path = write_snapshot(
-        {
-            "generated_at": found_at,
-            "origins": origins,
-            "dates": sorted({job["day"] for job in planned}),
-            "pairs": len({(job["origin"], job["destination"]) for job in planned}),
-            "jobs": len(planned),
-            "notes": notes,
-            "records": records,
-        },
-        folder,
-    )
     miles = sort_records(records)
     progress = f"Catálogo: {len(miles)} milhas"
     if notes:
@@ -310,7 +243,6 @@ async def run_snapshot(
     return {
         "ok": True,
         "search_id": search_id,
-        "file": str(path),
         "milhas": len(miles),
         "notes": notes,
     }
@@ -336,7 +268,7 @@ def main(argv: list[str] | None = None) -> int:
         description="Coleta LATAM, Azul e GOL/Smiles só do que você pedir. Sem pedido, não busca o catálogo inteiro.",
     )
     sub = parser.add_subparsers(dest="command")
-    sub.add_parser("from-db", help="Espelhar o banco em latest.json, sem buscar nas cias")
+    sub.add_parser("from-db", help="Contar milhas que já estão no banco, sem buscar nas cias")
     sub.add_parser("catalog", help="Varredura antiga do catálogo (evitar; gasta muitas buscas)")
     ask = sub.add_parser("ask", help="Pedido pontual: origem, destino/região e datas")
     ask.add_argument("--origem", "--origin", dest="origin", default="GIG")

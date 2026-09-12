@@ -5,7 +5,7 @@ description: Catálogo de origens e destinos do site Viannas pelo Mundo. Use ao 
 
 # Rotas Viannas pelo Mundo
 
-Fonte da verdade: `data/catalog/routes.json`.
+Fonte da verdade: `data/routes.json`.
 
 Não inventar preço. Só milhas. Busca pessoal, não comercial. Sem API paga (nem Gecko). Sem furar proteção das cias.
 
