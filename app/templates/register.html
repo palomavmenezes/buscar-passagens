@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Criar conta · Viannas pelo Mundo{% endblock %}
+{% block body %}
+<section class="login-card">
+  <p class="kicker">Comece grátis</p>
+  <h1>Criar conta</h1>
+  <p class="lede">
+    {% if first_user %}
+      Esta é a primeira conta do site e vira administradora.
+    {% else %}
+      Depois do cadastro a gente libera sua conta. Enquanto isso você já entra, mas as datas ficam fechadas.
+    {% endif %}
+  </p>
+  <form method="post" action="/conta" class="stack">
+    <input type="hidden" name="next" value="{{ next|default('/') }}">
+    <label>
+      Nome
+      <input name="name" value="{{ name|default('') }}" required autocomplete="name">
+    </label>
+    <label>
+      E-mail
+      <input type="email" name="email" value="{{ email|default('') }}" required autocomplete="email">
+    </label>
+    <label>
+      Senha
+      <input type="password" name="password" required minlength="8" autocomplete="new-password">
+    </label>
+    {% if error %}
+    <p class="error">{{ error }}</p>
+    {% endif %}
+    <button type="submit">Criar conta</button>
+  </form>
+  <p class="hint">Já tem conta? <a href="/login?next={{ next|default('/')|urlencode }}">Entrar</a></p>
+</section>
+{% endblock %}

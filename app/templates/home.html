@@ -1,48 +1,56 @@
 {% extends "base.html" %}
+{% block title %}Saindo de {{ active_origin_label }} · Viannas pelo Mundo{% endblock %}
 {% block body %}
 <section class="hero">
   <p class="kicker">Saindo de</p>
-  <h1>{{ active_origin }}</h1>
-  <p class="lede">Busque primeiro. Os cards só aparecem quando já existe preço em milhas.</p>
-  <div class="origin-switch">
-    {% for code in origins %}
-    <a class="{% if code == active_origin %}on{% endif %}" href="/?origem={{ code }}">{{ code }}</a>
-    {% endfor %}
-  </div>
+  <h1>{{ active_origin_label }} <span class="hero-code">{{ active_origin }}</span></h1>
+  {% if is_approved %}
+  <p class="lede">Menores valores de <strong>só ida</strong> já coletados, como no site de uma cia — sem disparar busca nova.</p>
+  {% elif current_user and current_user.status == 'rejected' %}
+  <p class="lede">Sua conta não foi aprovada. Os valores completos e as datas não ficam visíveis.</p>
+  {% elif current_user %}
+  <p class="lede">Sua conta está em análise. Alguns preços nacionais aparecem; as datas só depois da aprovação.</p>
+  {% else %}
+  <p class="lede">Alguns destinos com o menor valor em milhas. As datas ficam visíveis depois que sua conta for aprovada.</p>
+  {% endif %}
+  {% with path='/' %}{% include "_origins.html" %}{% endwith %}
 </section>
 
-{% include "_harvest.html" %}
+{% if current_user and current_user.status == 'pending' %}
+<section class="join-banner wait">
+  <div>
+    <p class="kicker">Aguardando aprovação</p>
+    <h2>Conta criada. Falta a gente liberar.</h2>
+    <p>Você já está dentro, mas datas, horários e internacionais só aparecem depois da aprovação. A gente avisa por aqui quando liberar — é só atualizar a página.</p>
+  </div>
+</section>
+{% elif current_user and current_user.status == 'rejected' %}
+<section class="join-banner wait">
+  <div>
+    <p class="kicker">Conta recusada</p>
+    <h2>Essa conta não foi aprovada</h2>
+    <p>Os valores completos e as datas continuam fechados.</p>
+  </div>
+</section>
+{% elif not current_user %}
+<section class="join-banner">
+  <div>
+    <p class="kicker">Conta grátis</p>
+    <h2>Crie a conta para pedir acesso</h2>
+    <p>Preços de alguns destinos nacionais aparecem aqui. Data, horários e internacionais completos só depois da aprovação. Assinatura (em breve): R$ 9,99 nacionais · R$ 14,99 com internacionais.</p>
+  </div>
+  <div class="join-actions">
+    <a class="button" href="/conta">Criar conta</a>
+    <a class="ghost button" href="/login">Já tenho conta</a>
+  </div>
+</section>
+{% endif %}
 
-{% with kind='miles', origins_value=origins|join(', ') %}
-{% include "_search.html" %}
-{% endwith %}
-
-{% if cards.national or cards.international %}
-<div class="split">
-  {% if cards.national %}
-  <section>
-    <div class="section-head">
-      <div>
-        <p class="kicker">Encontrados</p>
-        <h2>Nacionais</h2>
-      </div>
-    </div>
-    {% with items=cards.national %}{% include "_gallery.html" %}{% endwith %}
-  </section>
+{% include "_boards.html" %}
+{% if is_approved %}
+  {% include "_search.html" %}
+  {% if is_admin %}
+    {% include "_harvest.html" %}
   {% endif %}
-  {% if cards.international %}
-  <section>
-    <div class="section-head">
-      <div>
-        <p class="kicker">Encontrados</p>
-        <h2>Internacionais</h2>
-      </div>
-    </div>
-    {% with items=cards.international %}{% include "_gallery.html" %}{% endwith %}
-  </section>
-  {% endif %}
-</div>
-{% else %}
-<p class="hint">Ainda não há destinos com valor para {{ active_origin }}. Dispare uma busca acima.</p>
 {% endif %}
 {% endblock %}

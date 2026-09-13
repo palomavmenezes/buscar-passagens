@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Só ida saindo de {{ active_origin }} · Viannas pelo Mundo{% endblock %}
+{% block body %}
+<section class="hero">
+  <p class="kicker">Passagens só de ida</p>
+  <h1>Saindo de {{ active_origin_label }} <span class="hero-code">{{ active_origin }}</span></h1>
+  <p class="lede">Um card por destino, com o menor valor de ida. Abaixo de cada preço, quando aquela tarifa foi atualizada.</p>
+  {% with path='/ida' %}{% include "_origins.html" %}{% endwith %}
+</section>
+{% include "_boards.html" %}
+{% include "_search.html" %}
+{% endblock %}

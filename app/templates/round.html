@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Ida e volta saindo de {{ active_origin }} · Viannas pelo Mundo{% endblock %}
+{% block body %}
+<section class="hero">
+  <p class="kicker">Ida + volta</p>
+  <h1>Saindo de {{ active_origin_label }} <span class="hero-code">{{ active_origin }}</span></h1>
+  <p class="lede">O card mostra o menor voo de ida somado ao menor voo de volta do mesmo destino.</p>
+  <div class="round-how" aria-label="Como o valor é calculado">
+    <div class="round-how-step">
+      <span class="badge badge-ida">
+        <svg class="icon" aria-hidden="true"><use href="#i-out"></use></svg>
+        Ida
+      </span>
+      <span>menor trecho de ida</span>
+    </div>
+    <span class="round-op" aria-hidden="true">+</span>
+    <div class="round-how-step">
+      <span class="badge badge-volta">
+        <svg class="icon" aria-hidden="true"><use href="#i-in"></use></svg>
+        Volta
+      </span>
+      <span>menor trecho de volta</span>
+    </div>
+    <span class="round-op" aria-hidden="true">=</span>
+    <div class="round-how-step">
+      <span class="badge badge-total">
+        <svg class="icon" aria-hidden="true"><use href="#i-loop"></use></svg>
+        Total
+      </span>
+      <span>o valor do card</span>
+    </div>
+  </div>
+  {% with path='/ida-volta' %}{% include "_origins.html" %}{% endwith %}
+</section>
+{% include "_boards.html" %}
+{% include "_search.html" %}
+{% endblock %}

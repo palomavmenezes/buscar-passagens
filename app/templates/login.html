@@ -2,18 +2,24 @@
 {% block title %}Entrar · Viannas pelo Mundo{% endblock %}
 {% block body %}
 <section class="login-card">
-  <p class="kicker">Acesso privado</p>
-  <h1>Viannas pelo Mundo</h1>
-  <p class="lede">Passagens em milhas, com os valores das próprias cias.</p>
+  <p class="kicker">Sua conta</p>
+  <h1>Entrar</h1>
+  <p class="lede">Com o login, depois da aprovação, você vê as datas e os valores completos das milhas já coletadas.</p>
   <form method="post" action="/login" class="stack">
+    <input type="hidden" name="next" value="{{ next|default('/') }}">
+    <label>
+      E-mail
+      <input type="email" name="email" value="{{ email|default('') }}" required autofocus autocomplete="email">
+    </label>
     <label>
       Senha
-      <input type="password" name="password" required autofocus>
+      <input type="password" name="password" required autocomplete="current-password">
     </label>
     {% if error %}
     <p class="error">{{ error }}</p>
     {% endif %}
     <button type="submit">Entrar</button>
   </form>
+  <p class="hint">Ainda não tem conta? <a href="/conta?next={{ next|default('/')|urlencode }}">Criar conta grátis</a></p>
 </section>
 {% endblock %}

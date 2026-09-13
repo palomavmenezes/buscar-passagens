@@ -1,0 +1,8 @@
+<div class="origin-switch" role="navigation" aria-label="Saindo de">
+  {% for code in origins %}
+  <a class="{% if code == active_origin %}on{% endif %}" href="{{ path }}?origem={{ code }}">
+    <strong>{{ code }}</strong>
+    <span>{{ origin_labels.get(code, code) }}</span>
+  </a>
+  {% endfor %}
+</div>

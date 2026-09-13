@@ -1,0 +1,106 @@
+{% if items %}
+<div class="flight-list">
+  {% for item in items %}
+  <article class="pair-card{% if item.best_price %} best{% endif %}">
+    <header class="pair-head">
+      <div>
+        <div class="pair-badges">
+          <span class="badge badge-quiet">
+            <svg class="icon" aria-hidden="true"><use href="#i-pin"></use></svg>
+            {{ 'Nacional' if item.national else 'Internacional' }}
+          </span>
+          {% if item.best_price %}
+          <span class="badge badge-best">
+            <svg class="icon" aria-hidden="true"><use href="#i-star"></use></svg>
+            Melhor preço
+          </span>
+          {% endif %}
+        </div>
+        <h3>{{ item.city }}</h3>
+        <p class="pair-itin" aria-label="Ida e volta">
+          <strong>{{ item.outbound.origin }}</strong>
+          <span class="flight-arrow">→</span>
+          <strong>{{ item.outbound.destination }}</strong>
+          <svg class="icon pair-loop" aria-hidden="true"><use href="#i-loop"></use></svg>
+          <strong>{{ item.inbound.origin }}</strong>
+          <span class="flight-arrow">→</span>
+          <strong>{{ item.inbound.destination }}</strong>
+        </p>
+      </div>
+    </header>
+
+    <div class="pair-legs">
+      <div class="pair-leg pair-leg-ida">
+        <span class="badge badge-ida">
+          <svg class="icon" aria-hidden="true"><use href="#i-out"></use></svg>
+          Ida
+        </span>
+        <div class="pair-leg-body">
+          <p class="pair-codes">{{ item.outbound.origin }} → {{ item.outbound.destination }}</p>
+          <p class="pair-when">
+            <svg class="icon" aria-hidden="true"><use href="#i-cal"></use></svg>
+            {{ item.outbound.departure_date|voo(item.outbound.departure_time, item.outbound.arrival_time) }}
+          </p>
+          <div class="pair-leg-meta">
+            <span class="badge">{{ program_labels.get(item.outbound.miles_program, item.outbound.miles_program or 'Milhas') }}</span>
+            {% if item.outbound.fare %}<span class="badge badge-quiet">{{ item.outbound.fare }}</span>{% endif %}
+            {% if item.outbound.cabin and item.outbound.cabin != 'economy' %}
+            <span class="badge badge-quiet">{{ cabin_labels.get(item.outbound.cabin, item.outbound.cabin) }}</span>
+            {% endif %}
+          </div>
+          <p class="updated">
+            <svg class="icon" aria-hidden="true"><use href="#i-clock"></use></svg>
+            Atualizado {{ item.outbound.updated }}
+          </p>
+        </div>
+        <p class="pair-leg-miles">{{ item.outbound.miles|milhas }} <small>milhas</small></p>
+      </div>
+
+      <div class="pair-plus" aria-hidden="true">
+        <svg class="icon"><use href="#i-plus"></use></svg>
+      </div>
+
+      <div class="pair-leg pair-leg-volta">
+        <span class="badge badge-volta">
+          <svg class="icon" aria-hidden="true"><use href="#i-in"></use></svg>
+          Volta
+        </span>
+        <div class="pair-leg-body">
+          <p class="pair-codes">{{ item.inbound.origin }} → {{ item.inbound.destination }}</p>
+          <p class="pair-when">
+            <svg class="icon" aria-hidden="true"><use href="#i-cal"></use></svg>
+            {{ item.inbound.departure_date|voo(item.inbound.departure_time, item.inbound.arrival_time) }}
+          </p>
+          <div class="pair-leg-meta">
+            <span class="badge">{{ program_labels.get(item.inbound.miles_program, item.inbound.miles_program or 'Milhas') }}</span>
+            {% if item.inbound.fare %}<span class="badge badge-quiet">{{ item.inbound.fare }}</span>{% endif %}
+            {% if item.inbound.cabin and item.inbound.cabin != 'economy' %}
+            <span class="badge badge-quiet">{{ cabin_labels.get(item.inbound.cabin, item.inbound.cabin) }}</span>
+            {% endif %}
+          </div>
+          <p class="updated">
+            <svg class="icon" aria-hidden="true"><use href="#i-clock"></use></svg>
+            Atualizado {{ item.inbound.updated }}
+          </p>
+        </div>
+        <p class="pair-leg-miles">{{ item.inbound.miles|milhas }} <small>milhas</small></p>
+      </div>
+    </div>
+
+    <div class="flight-fare">
+      <p class="fare-kicker">
+        <svg class="icon" aria-hidden="true"><use href="#i-loop"></use></svg>
+        Ida + volta
+      </p>
+      <p class="flight-price">{{ item.miles|milhas }} <small>milhas</small></p>
+      <p class="pair-formula">{{ item.outbound.miles|milhas }} + {{ item.inbound.miles|milhas }}</p>
+      <p class="updated">
+        <svg class="icon" aria-hidden="true"><use href="#i-clock"></use></svg>
+        Atualizado {{ item.updated_oldest or item.updated }}
+      </p>
+      <a class="button" href="/milhas?origem={{ item.outbound.origin }}&origin={{ item.outbound.origin }}&destination={{ item.outbound.destination }}#lista">Ver trechos</a>
+    </div>
+  </article>
+  {% endfor %}
+</div>
+{% endif %}
