@@ -4,10 +4,16 @@
 <section class="hero compact">
   <p class="kicker">Busca</p>
   <h1>Filtrar a coleta</h1>
-  <p class="lede">Origem, destino, tipo, cabine, datas e cia. O match mostra os menores valores.</p>
+  <p class="lede">Origem, destino, só ida ou ida e volta, datas, cia e faixa de milhas. O match mostra os menores valores já gravados{% if is_admin and harvest_live %}; Solicitar preço manda o Chrome buscar na cia e devolve nesta busca{% endif %}.</p>
 </section>
 {% include "_search.html" %}
+{% if is_admin %}
+  {% include "_harvest.html" %}
+{% endif %}
 
+{% if empty_message %}
+<p class="notice empty-search">{{ empty_message }}</p>
+{% else %}
 <section class="stats">
   <article>
     <span>Resultados</span>
@@ -26,13 +32,14 @@
 </section>
 
 {% include "_boards.html" %}
+{% endif %}
 
 {% if page_mode == 'ida' and rows %}
 <section class="panel" id="lista">
   <h2>Todas as idas encontradas</h2>
   <div class="flight-list">
     {% for row in rows %}
-    <article class="flight-row{% if row.best_price %} best{% endif %}">
+    <article class="flight-row{% if row.best_price %} best{% endif %}{% if row.excellent_price %} excellent{% endif %}">
       <div>
         <div class="flight-route">
           <strong>{{ row.origin }}</strong>
@@ -40,15 +47,19 @@
           <strong>{{ row.destination }}</strong>
           <span class="flight-city">{{ row.origin_city }} → {{ row.city }}</span>
         </div>
-        <p class="muted">{{ row.departure_date|voo(row.departure_time, row.arrival_time) }}</p>
+        <p class="muted">{{ row.departure_date|voo(row.departure_time, row.arrival_time) }}{% if row.duration %} · {{ row.duration }}{% endif %}</p>
         <div class="flight-meta">
-          <span class="pill">{{ program_labels.get(row.miles_program, row.miles_program or 'Milhas') }}</span>
+          <span class="pill">
+            {% if row.logo %}<img class="cia-logo" src="{{ row.logo }}" alt="">{% endif %}
+            {{ program_labels.get(row.miles_program, row.miles_program or 'Milhas') }}
+          </span>
           {% if row.fare %}<span class="muted">{{ row.fare }}</span>{% endif %}
           {% if row.airline %}<span class="muted">{{ row.airline }}</span>{% endif %}
         </div>
       </div>
       <div class="flight-fare">
         <p class="flight-price">{{ row.miles|milhas }} <small>milhas</small></p>
+        {% if row.excellent_price %}<span class="pill excellent">Preço excelente!</span>{% endif %}
         {% if row.best_price %}<span class="pill best">Melhor preço!</span>{% endif %}
         <p class="updated">Atualizado {{ row.updated }}</p>
         {% if row.booking_url %}<a href="{{ row.booking_url }}" target="_blank" rel="noreferrer">Abrir na cia</a>{% endif %}

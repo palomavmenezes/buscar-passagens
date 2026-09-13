@@ -1,5 +1,5 @@
 <section class="panel search-box">
-  <h2>Buscar nas milhas já coletadas</h2>
+  <h2>{% if is_admin and harvest_live %}Buscar ou solicitar preço{% else %}Buscar nas milhas já coletadas{% endif %}</h2>
   <form method="get" action="/buscar" class="search-form" id="search-form">
     <label>
       Origem
@@ -13,7 +13,7 @@
     </label>
     <label>
       Destino
-      <input name="destino" list="destinos" placeholder="SSA, Lisboa, VIX…" value="{{ filters.destination if filters is defined else '' }}">
+      <input name="destino" list="destinos" placeholder="SSA, Lisboa, SAO, Nordeste…" value="{{ filters.destination if filters is defined else '' }}">
       <datalist id="destinos">
         {% for code, city in airport_options %}
         <option value="{{ code }}">{{ city }}</option>
@@ -56,10 +56,31 @@
       Companhia (texto)
       <input name="companhia" placeholder="LATAM, Azul…" value="{{ filters.airline if filters is defined else '' }}">
     </label>
-    <button type="submit">Mostrar menores valores</button>
+    <label>
+      Mínimo de milhas
+      <input name="min" inputmode="numeric" placeholder="Padrão da cia" value="{{ filters.miles_min if filters is defined else '' }}">
+    </label>
+    <label>
+      Máximo de milhas
+      <input name="max" inputmode="numeric" placeholder="Padrão da cia" value="{{ filters.miles_max if filters is defined else '' }}">
+    </label>
+    <div class="search-actions">
+      <button type="submit">Mostrar menores valores</button>
+      {% if is_admin and harvest_live %}
+      <button class="ghost" type="submit" formaction="/buscar/coletar" formmethod="post">Solicitar preço</button>
+      {% endif %}
+    </div>
   </form>
   <p class="hint">
+    Se o mínimo e o máximo ficarem vazios, usamos o teto de cada cia:
+    LATAM nacional até 25 mil (internacional LIGHT até 150 mil);
+    Azul nacional até 30 mil (internacional até 100 mil). Executiva tem teto maior.
+    {% if is_admin and harvest_live %}
+    Mostrar menores valores filtra o que já está no banco.
+    Solicitar preço abre o Chrome da LATAM neste trecho. Para a Azul, escolha TudoAzul no programa.
+    {% else %}
     A busca só filtra o que já foi coletado. Só ida mostra o menor trecho saindo da origem.
-    Ida e volta soma o menor voo de ida com o menor voo de volta do mesmo destino, para a origem escolhida.
+    Ida e volta soma o menor voo de ida com o menor voo de volta do mesmo destino.
+    {% endif %}
   </p>
 </section>

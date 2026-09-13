@@ -1,31 +1,144 @@
 <aside class="harvest-box">
   <div>
-    <p class="kicker">Coleta própria</p>
-    <h2>LATAM e Azul no site de cada cia</h2>
+    <p class="kicker">Coleta própria · só admin</p>
+    <h2>LATAM no site da cia</h2>
     <p>
-      Sem API paga. Cada coletor abre o Chrome com a <strong>sua sessão</strong>,
-      preenche a home e grava as milhas em <code>data/harvest/</code>.
-      O painel lê isso o dia inteiro. GOL/Smiles ainda não entra na vitrine.
+      Sem API paga. A agenda automática abre só o Chrome da <strong>LATAM</strong>.
+      A Azul só entra quando você pedir na busca (programa TudoAzul) ou no terminal.
+      Origem <strong>{{ harvest.origin }}</strong>.
+      Nacional e internacional não entram no mesmo horário da agenda.
     </p>
     <p>
-      Login uma vez no terminal:
-      <code>python3 -m app.collectors.latam login</code>,
-      <code>python3 -m app.collectors.azul login</code>.
-      Até {{ harvest.latam_max }} rotas por cia às
-      {% for hour in harvest.hours %}{{ '%02d'|format(hour) }}h{% if not loop.last %} e {% endif %}{% endfor %}.
+      LATAM usa os cookies do Chrome. Se expirar, entre você na janela
+      (<code>python3 -m app.collectors.latam login</code>); não preencho senha.
+      A Azul busca como visitante, sem conta.
+      Até {{ harvest.latam_max }} rotas por rodada.
     </p>
     <p class="muted">
-      LATAM{% if harvest.latam_ready %}: sessão salva{% else %}: precisa de login{% endif %} ·
-      Azul{% if harvest.azul_ready %}: sessão salva{% else %}: precisa de login{% endif %}.
+      LATAM{% if harvest.latam_ready %}: cookies salvos{% else %}: se pedir, entre você no Chrome{% endif %}.
+      Azul: visitante, sem login.
       {% if harvest.last %}
         Última coleta {{ harvest.last.label }} · {{ harvest.last.offers or 0 }} ofertas.
       {% else %}
         Ainda não houve coleta.
       {% endif %}
-      Próximos horários: {{ harvest.next|join(' · ') }}.
+      {% if harvest.busy %}Chrome ocupado agora.{% endif %}
     </p>
+    {% if harvest.next %}
+    <p class="muted">Próximos da agenda: {{ harvest.next|join(' · ') }}.</p>
+    {% endif %}
+
+    {% if harvest.live %}
+    <div class="harvest-groups">
+      <section class="harvest-group">
+        <h3>Agenda</h3>
+        <div class="harvest-cmds">
+          <form method="post" action="/coleta">
+            <button type="submit">Coletar a próxima da agenda</button>
+          </form>
+        </div>
+      </section>
+
+      <section class="harvest-group">
+        <h3>Nacional ou internacional</h3>
+        <p class="muted">Pega a próxima região/país da fila da agenda — não fica preso na Itália.</p>
+        <div class="harvest-cmds">
+          <form method="post" action="/coleta">
+            <input type="hidden" name="modo" value="nacional">
+            <button class="ghost" type="submit">Próxima região nacional</button>
+          </form>
+          <form method="post" action="/coleta">
+            <input type="hidden" name="modo" value="internacional">
+            <button class="ghost" type="submit">Próximo país internacional</button>
+          </form>
+          <form method="post" action="/coleta">
+            <input type="hidden" name="modo" value="ambos">
+            <button class="ghost" type="submit">Nacional e depois internacional</button>
+          </form>
+        </div>
+      </section>
+
+      <section class="harvest-group">
+        <h3>Por região</h3>
+        <form method="post" action="/coleta" class="harvest-pick">
+          <input type="hidden" name="escopo" value="region">
+          <label>
+            Região
+            <select name="alvo" required>
+              <option value="" disabled selected>Escolha a região</option>
+              <optgroup label="Nacional">
+                {% for region in harvest.picker.regions %}
+                  {% if region.kind != 'international' %}
+                  <option value="{{ region.id }}">{{ region.label }}</option>
+                  {% endif %}
+                {% endfor %}
+              </optgroup>
+              <optgroup label="Internacional">
+                {% for region in harvest.picker.regions %}
+                  {% if region.kind == 'international' %}
+                  <option value="{{ region.id }}">{{ region.label }}</option>
+                  {% endif %}
+                {% endfor %}
+              </optgroup>
+            </select>
+          </label>
+          <button type="submit">Coletar esta região</button>
+        </form>
+      </section>
+
+      <section class="harvest-group">
+        <h3>Por país</h3>
+        <form method="post" action="/coleta" class="harvest-pick">
+          <input type="hidden" name="escopo" value="country">
+          <label>
+            País
+            <select name="alvo" required>
+              <option value="" disabled selected>Escolha o país</option>
+              {% for country in harvest.picker.countries %}
+              <option value="{{ country.id }}">{{ country.label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <button type="submit">Coletar este país</button>
+        </form>
+      </section>
+
+      <section class="harvest-group">
+        <h3>Por estado</h3>
+        <form method="post" action="/coleta" class="harvest-pick">
+          <input type="hidden" name="escopo" value="state">
+          <label>
+            Estado
+            <select name="alvo" required>
+              <option value="" disabled selected>Escolha o estado</option>
+              {% for state in harvest.picker.states %}
+              <option value="{{ state.id }}">{{ state.label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <button type="submit">Coletar este estado</button>
+        </form>
+      </section>
+
+      <section class="harvest-group">
+        <h3>Por aeroporto</h3>
+        <form method="post" action="/coleta" class="harvest-pick">
+          <input type="hidden" name="escopo" value="airport">
+          <label>
+            Aeroporto
+            <select name="alvo" required>
+              <option value="" disabled selected>Escolha o aeroporto</option>
+              {% for airport in harvest.picker.airports %}
+              <option value="{{ airport.id }}">{{ airport.label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <button type="submit">Coletar este aeroporto</button>
+        </form>
+      </section>
+    </div>
+    {% else %}
+    <p class="muted">A coleta com Chrome só roda neste computador, não no ar (Vercel).</p>
+    {% endif %}
   </div>
-  <form method="post" action="/coleta">
-    <button type="submit">Coletar agora</button>
-  </form>
 </aside>

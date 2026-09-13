@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from calendar import monthrange
 from datetime import date, datetime, timedelta, timezone
 
@@ -10,6 +11,43 @@ def parse_date(value: str | None) -> date | None:
     if not value:
         return None
     return datetime.strptime(value, "%Y-%m-%d").date()
+
+
+def date_span(start: str | date | None, end: str | date | None, max_days: int = 90) -> list[date]:
+    first = start if isinstance(start, date) else parse_date(str(start)[:10] if start else None)
+    last = end if isinstance(end, date) else parse_date(str(end)[:10] if end else None)
+    if not first:
+        return []
+    if not last:
+        last = first
+    if last < first:
+        first, last = last, first
+    days: list[date] = []
+    cursor = first
+    while cursor <= last and len(days) < max(1, max_days):
+        days.append(cursor)
+        cursor += timedelta(days=1)
+    return days
+
+
+def duration_minutes(raw: str | None) -> int | None:
+    blob = str(raw or "").lower()
+    if not blob.strip():
+        return None
+    hours = 0
+    mins = 0
+    found = False
+    hour_match = re.search(r"(\d+)\s*h", blob)
+    min_match = re.search(r"(\d+)\s*m", blob)
+    if hour_match:
+        hours = int(hour_match.group(1))
+        found = True
+    if min_match:
+        mins = int(min_match.group(1))
+        found = True
+    if not found:
+        return None
+    return hours * 60 + mins
 
 
 def horizon_days(date_mode: str) -> int:

@@ -25,6 +25,9 @@
   {% endif %}
   {% if search %}
   <p class="lede" id="progress">{{ search.progress }} · {{ search.status }}</p>
+  {% if browse_url %}
+  <p class="hint"><a href="{{ browse_url }}">Ver estes trechos na busca</a> — quando o Chrome gravar, as milhas entram aqui e na vitrine.</p>
+  {% endif %}
   {% else %}
   {% with path='/milhas' %}{% include "_origins.html" %}{% endwith %}
   {% endif %}
@@ -103,7 +106,7 @@
     </thead>
     <tbody>
       {% for row in rows %}
-      <tr class="{% if row.best_price %}best{% endif %}" data-kind="{{ row.trip_kind or 'ida' }}" data-miles="{{ row.miles or 0 }}" data-route="{{ row.origin }} → {{ row.destination }}" data-when="{{ row.departure_date }} {{ row.departure_time or '' }}">
+      <tr class="{% if row.best_price %}best{% endif %}{% if row.excellent_price %} excellent{% endif %}" data-kind="{{ row.trip_kind or 'ida' }}" data-miles="{{ row.miles or 0 }}" data-route="{{ row.origin }} → {{ row.destination }}" data-when="{{ row.departure_date }} {{ row.departure_time or '' }}">
         <td data-label="Rota">
           <strong>{{ row.origin }} → {{ row.destination }}</strong>
           <div class="muted">{{ row.city if row.city is defined else '' }}</div>
@@ -131,6 +134,7 @@
           {% endif %}
         </td>
         <td data-label="Programa">
+          {% if row.logo %}<img class="cia-logo" src="{{ row.logo }}" alt="">{% endif %}
           {{ program_labels.get(row.miles_program, row.miles_program or 'Milhas') }}
           {% if row.cabin == 'business' %}
           <span class="pill">Executiva</span>
@@ -141,6 +145,9 @@
           <span class="pill">Só volta</span>
           {% elif row.trip_kind == 'round_trip' or row.return_date %}
           <span class="pill">Ida + volta</span>
+          {% endif %}
+          {% if row.excellent_price %}
+          <span class="pill excellent">Preço excelente!</span>
           {% endif %}
           {% if row.best_price %}
           <span class="pill best">Melhor preço!</span>

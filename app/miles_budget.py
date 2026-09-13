@@ -6,7 +6,8 @@ from app.config import MIN_PUBLISH_MILES
 LATAM_NATIONAL_MAX = 25_000
 LATAM_INTL_LIGHT_MAX = 150_000
 LATAM_INTL_BUSINESS_MAX = 300_000
-AZUL_NATIONAL_NORMAL_MAX = 30_000
+AZUL_NATIONAL_NORMAL_MAX = 25_000
+EXCELLENT_MILES = 8_000
 AZUL_INTL_CHEAPEST_MAX = 100_000
 AZUL_INTL_BUSINESS_MAX = 150_000
 AZUL_FARE_PUBLICA = "Tarifa Pública"
@@ -66,6 +67,59 @@ def max_miles_per_leg(
     if _is_business(cabin, fare):
         return LATAM_INTL_BUSINESS_MAX
     return LATAM_INTL_LIGHT_MAX
+
+
+def total_miles_budget(
+    origin: str,
+    dest: str,
+    *,
+    program: str = "latam",
+    cabin: str = "economy",
+    fare: str | None = None,
+    trip_type: str = "one_way",
+) -> tuple[int, int]:
+    legs = 2 if trip_type == "round_trip" else 1
+    low = min_miles_per_leg(origin, dest, cabin or "economy") * legs
+    cap = max_miles_per_leg(
+        origin,
+        dest,
+        program=program,
+        cabin=cabin or "economy",
+        fare=fare,
+        trip_kind=None,
+    )
+    high = (cap if cap is not None else LATAM_INTL_LIGHT_MAX) * legs
+    return low, high
+
+
+def miles_within_budget(
+    miles: int | None,
+    origin: str,
+    dest: str,
+    *,
+    program: str = "latam",
+    cabin: str = "economy",
+    fare: str | None = None,
+    trip_type: str = "one_way",
+    miles_min: int | None = None,
+    miles_max: int | None = None,
+) -> bool:
+    if not miles:
+        return False
+    value = int(miles)
+    low, high = total_miles_budget(
+        origin,
+        dest,
+        program=program,
+        cabin=cabin,
+        fare=fare,
+        trip_type=trip_type,
+    )
+    if miles_min is not None:
+        low = miles_min
+    if miles_max is not None:
+        high = miles_max
+    return low <= value <= high
 
 
 def plausible_miles(
