@@ -19,9 +19,11 @@ Se faltar destino, data de ida ou data de volta — e nenhum padrão abaixo comp
 
 Origem padrão: GIG, se ela não disser outra.
 
-Se ela quiser **GIG e SDU na mesma rota**, não faça duas buscas. Use **RIO** na LATAM, na Azul e no GOL/Smiles (`--origem RIO` ou `--origem GIG,SDU`, que vira uma busca RIO). Na coleta, grave o aeroporto real de cada voo (GIG ou SDU).
+Se ela quiser **GIG e SDU na mesma rota**, não faça duas buscas. Use **RIO** na LATAM e na Azul (`--origem RIO` ou `--origem GIG,SDU`, que vira uma busca RIO). Na coleta, grave o aeroporto real de cada voo (GIG ou SDU).
 
-Não dispare o Chrome só com “quero passagens” ou “busca o catálogo”.
+Se ela quiser **Congonhas, Guarulhos e Viracopos** na mesma rota, use **SAO** (`--para SAO` ou `--origem SAO`). Uma busca cobre CGH, GRU e VCP. Grave o aeroporto real de cada voo.
+
+Não dispare o Chrome só com “quero passagens” ou “busca o catálogo”. Agenda automática: só LATAM. Azul só quando ela pedir.
 
 ## Padrões que já dão para rodar
 
@@ -30,7 +32,8 @@ Quando o pedido já traz destino + datas (ou um padrão de datas), monte a lista
 | Ela diz | Entenda |
 |---|---|
 | `finais de semana` / `fins de semana` / `fim de semana` do mês X | **Ida sexta, volta segunda**, cada semana daquele mês |
-| `GIG e SDU` para o mesmo destino | **Uma busca com origem `RIO`** na LATAM, Azul e GOL (Galeão e Santos Dumont juntos) |
+| `GIG e SDU` para o mesmo destino | **Uma busca com origem `RIO`** na LATAM e na Azul (Galeão e Santos Dumont juntos) |
+| `CGH, GRU e VCP` / `São Paulo` / `SAO` | **Uma busca `SAO`** (Congonhas, Guarulhos e Viracopos juntos) |
 | `GIG para Salvador` / `SSA` | Origem GIG, destino SSA |
 | `Nordeste`, `Itália`, `Portugal`, … | Todos os aeroportos da região no catálogo |
 | Datas `15/12` e `28/12` | Ida e volta explícitas |
@@ -69,7 +72,7 @@ Varredura do catálogo: `python3 -m app.snapshot catalog` — evitar.
 
 ## Catálogo
 
-Nacional e internacional **não são iguais** na LATAM e na Azul. Fonte: `data/routes.json` (`programs` em cada aeroporto). Origem RIO não busca GIG/SDU.
+Nacional e internacional **não são iguais** na LATAM e na Azul. Fonte: `data/routes.json` (`programs` em cada aeroporto). Origem RIO não busca GIG/SDU. Origem SAO não busca CGH/GRU/VCP.
 
 **LATAM nacional:** Nordeste REC SSA FOR NAT MCZ AJU JPA SLZ BPS · Norte BEL MAO · Centro-Oeste BSB · Sudeste VCP CNF CGH GRU VIX · Sul POA CWB FLN NVT IGU
 
@@ -96,10 +99,11 @@ Ida + volta, nacional e internacional — **uma busca, duas pastas**:
 - Não voltar à ida nem refazer a busca
 - Por enquanto só quantidade de paradas e duração total do card; sem abrir itinerário
 
-Login (Chrome visível, sessão dela):
+Sessão nas cias:
+
+- **Azul:** busca como visitante. Não entrar na conta (risco de bloqueio por scraping). Chrome em `data/azul-chrome-guest`, sem o perfil logado.
+- **LATAM:** precisa estar logada. Usar só cookies do perfil salvo. Se pedir login, **ela entra na mão** no Chrome aberto; não preencher `LATAM_USER` / `LATAM_PASSWORD`.
 
 ```bash
 python3 -m app.collectors.latam login
-python3 -m app.collectors.azul login
-python3 -m app.collectors.smiles login
 ```

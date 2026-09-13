@@ -5,11 +5,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-from app.airports import city_name, expand_city_airports
+from app.airports import city_name, expand_city_airports, normalize_city_token
 from app.catalog import catalog_airports, collapse_rio_jobs, load_catalog, requested_jobs, snapshot_queue
 from app.collectors.azul import azul_session_ready, collect_azul_jobs
 from app.collectors.latam import collect_latam_jobs, latam_session_ready, plausible_miles
-from app.collectors.smiles import collect_smiles_jobs, smiles_session_ready
 from app.config import HARVEST_DIR, LATAM_MAX_PER_RUN, harvest_route_path
 from app.db import create_search, init_db, insert_results, now_iso, query_results, replace_miles_route, update_search
 from app.providers.base import Offer
@@ -163,6 +162,7 @@ async def run_snapshot(
     jobs: list[dict[str, Any]] | None = None,
     max_per_run: int | None = None,
     keep_order: bool = False,
+    programs: list[str] | None = None,
 ) -> dict[str, Any]:
     init_db()
     catalog = load_catalog()
@@ -192,16 +192,21 @@ async def run_snapshot(
     update_search(search_id, status="running", progress="Coleta do pedido")
 
     if "miles" in kinds:
+        wanted = {name.lower() for name in (programs or ["latam"]) if name.lower() in {"latam", "azul"}}
+        if not wanted:
+            wanted = {"latam"}
         airlines = [
-            ("latam", "LATAM Pass", latam_session_ready, collect_latam_jobs, "python3 -m app.collectors.latam login"),
-            ("azul", "Azul", azul_session_ready, collect_azul_jobs, "python3 -m app.collectors.azul login"),
-            ("smiles", "GOL/Smiles", smiles_session_ready, collect_smiles_jobs, "python3 -m app.collectors.smiles login"),
+            ("latam", "LATAM Pass", latam_session_ready, collect_latam_jobs),
+            ("azul", "Azul", azul_session_ready, collect_azul_jobs),
         ]
         limit = max_per_run or int(catalog.get("max_per_run") or LATAM_MAX_PER_RUN)
-        for program, title, ready, collect, login_cmd in airlines:
-            if not ready():
-                notes.append(f"{title}: faça login com {login_cmd}")
+        for program, title, ready, collect in airlines:
+            if program not in wanted:
                 continue
+            if program == "latam" and not ready():
+                notes.append(
+                    "LATAM: se pedir login, entre você no Chrome. Uso só os cookies salvos; não preencho senha."
+                )
             miles_dir = HARVEST_DIR / program
             pending = pending_jobs(planned, miles_dir)
             batches = take_run(pending, limit, keep_order=keep_order)
@@ -211,7 +216,12 @@ async def run_snapshot(
             )
             for label, batch in batches:
                 batch = [{**job, "program": program} for job in batch]
-                print(f"Leva {title} {label}: {len(batch)} trechos; 2-3 min na tela de resultados entre cada um.", flush=True)
+                gap_note = (
+                    "20-60s aleatórios na tela de resultados entre cada um"
+                    if program == "azul"
+                    else "2-3 min na tela de resultados entre cada um"
+                )
+                print(f"Leva {title} {label}: {len(batch)} trechos; {gap_note}.", flush=True)
                 update_search(search_id, progress=f"{title} milhas {label} ({len(batch)} trechos)")
 
                 def ingest(item: dict[str, Any], current_program: str = program, current_title: str = title) -> None:
@@ -278,12 +288,14 @@ async def run_snapshot(
                     batch,
                     miles_dir,
                     pause=None,
-                    halt_on={"login", "denied"},
+                    halt_on={"login", "denied"} if program != "azul" else {"denied"},
                     save_raw=True,
                     on_result=ingest,
                     **extra,
                 )
-                if notes and notes[-1].endswith("pediu login de novo"):
+                statuses = {str(item.get("status")) for item in collected or []}
+                if statuses & {"throttled", "denied"}:
+                    notes.append(f"{title} limitou o acesso; paro as próximas levas.")
                     break
                 del collected
 
@@ -301,14 +313,22 @@ async def run_snapshot(
 
 
 def summarize_jobs(jobs: list[dict[str, Any]]) -> dict[str, Any]:
-    return {
+    lista = [
+        f"{job['origin']}->{job['destination']} {job['day']} ({job.get('leg') or 'ida'})"
+        for job in jobs
+    ]
+    payload: dict[str, Any] = {
         "trechos": len(jobs),
         "destinos": sorted({job["destination"] if job.get("leg") != "volta" else job["origin"] for job in jobs}),
         "datas": sorted({job["day"] for job in jobs}),
         "idas": sum(1 for job in jobs if job.get("leg") != "volta"),
         "voltas": sum(1 for job in jobs if job.get("leg") == "volta"),
-        "lista": [f"{job['origin']}->{job['destination']} {job['day']} ({job.get('leg') or 'ida'})" for job in jobs],
     }
+    if len(lista) <= 40:
+        payload["lista"] = lista
+    else:
+        payload["amostra"] = lista[:6] + ["…"] + lista[-4:]
+    return payload
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -338,47 +358,85 @@ def main(argv: list[str] | None = None) -> int:
     )
     ask.add_argument("--dry-run", action="store_true", help="Só mostra os trechos, não abre o Chrome")
     ask.add_argument("--limite", type=int, default=None, help="Máximo nesta rodada (padrão 6)")
+    ask.add_argument("--de", dest="date_from", help="Primeira data de ida AAAA-MM-DD")
+    ask.add_argument("--ate", dest="date_to", help="Última data de ida AAAA-MM-DD (máx. 90 dias)")
+    ask.add_argument("--volta-de", dest="return_from", help="Primeira data de volta/ida inversa AAAA-MM-DD")
+    ask.add_argument("--volta-ate", dest="return_to", help="Última data de volta/ida inversa AAAA-MM-DD")
+    ask.add_argument("--programas", dest="programs", help="latam, azul ou ambos separados por vírgula")
+    ask.add_argument(
+        "--continuar",
+        action="store_true",
+        help="Segue levas de 6 trechos até acabar ou a cia limitar",
+    )
+    ask.add_argument(
+        "--azul",
+        action="store_true",
+        help="Inclui TudoAzul nesta rodada; o padrão é só LATAM",
+    )
     args = parser.parse_args(argv)
 
     if args.command == "from-db":
         print(seed_latest_from_db())
         return 0
     if args.command == "catalog":
-        result = asyncio.run(run_snapshot(("miles",)))
+        result = asyncio.run(run_snapshot(("miles",), programs=["latam"]))
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0 if result.get("ok") else 1
     if args.command == "ask":
         dests = [item.strip() for item in (args.destinations or "").split(",") if item.strip()]
         dates = [item.strip() for item in (args.dates or "").split(",") if item.strip()]
         origins = [item.strip().upper() for item in (args.origin or "GIG").split(",") if item.strip()]
+        programs = [item.strip().lower() for item in (args.programs or "").split(",") if item.strip()]
+        if not programs:
+            programs = ["latam", "azul"] if args.azul else ["latam"]
         jobs: list[dict[str, Any]] = []
         for origin in origins:
-            jobs.extend(
-                requested_jobs(
-                    origin="RIO" if origin in {"RJ", "RIO DE JANEIRO"} else origin,
-                    where=args.where,
-                    destinations=dests or None,
-                    month=args.month,
-                    dates=dates or None,
-                    invert=args.invert,
-                    weekends=args.weekends,
+            for program in programs:
+                jobs.extend(
+                    requested_jobs(
+                        origin=normalize_city_token(origin) or origin,
+                        where=args.where,
+                        destinations=dests or None,
+                        month=args.month,
+                        dates=dates or None,
+                        invert=args.invert,
+                        weekends=args.weekends,
+                        program=program,
+                        date_from=args.date_from,
+                        date_to=args.date_to,
+                        return_from=args.return_from,
+                        return_to=args.return_to,
+                    )
                 )
-            )
         jobs = collapse_rio_jobs(jobs)
         summary = summarize_jobs(jobs)
         print(json.dumps(summary, ensure_ascii=False, indent=2))
         if args.dry_run or not jobs:
             return 0 if jobs else 1
-        result = asyncio.run(
-            run_snapshot(
-                ("miles",),
-                jobs=jobs,
-                max_per_run=args.limite,
-                keep_order=True,
+        while True:
+            pending = []
+            for program in programs:
+                pending.extend(pending_jobs(jobs, HARVEST_DIR / program))
+            if args.continuar:
+                print(f"Ainda faltam {len(pending)} trechos nesta varredura.", flush=True)
+            result = asyncio.run(
+                run_snapshot(
+                    ("miles",),
+                    jobs=jobs,
+                    max_per_run=args.limite,
+                    keep_order=True,
+                    programs=programs,
+                )
             )
-        )
-        print(json.dumps(result, ensure_ascii=False, indent=2))
-        return 0 if result.get("ok") else 1
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            if not args.continuar:
+                return 0 if result.get("ok") else 1
+            notes = " ".join(result.get("notes") or [])
+            leftover = []
+            for program in programs:
+                leftover.extend(pending_jobs(jobs, HARVEST_DIR / program))
+            if "limitou" in notes or not leftover or len(leftover) >= len(pending):
+                return 0 if result.get("ok") else 1
     parser.print_help()
     return 0
 

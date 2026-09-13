@@ -12,19 +12,35 @@ from app.config import (
     HARVEST_DESTINATIONS,
     HARVEST_DIR,
     HARVEST_HOURS,
+    HARVEST_ORIGIN,
     HARVEST_ORIGINS,
     HARVEST_PROGRAMS,
     HARVEST_STATE_DIR,
     HARVEST_TZ,
+    IS_VERCEL,
     LATAM_MAX_PER_RUN,
     LATAM_MAX_ROUTES,
     has_live_cia_miles,
+)
+from app.harvest_plan import (
+    due_slots,
+    ensure_agenda,
+    format_slot_label,
+    harvest_picker,
+    mark_slot_done,
+    next_region_id,
+    normalize_kind,
+    normalize_region,
+    region_choices,
+    take_kind_jobs,
+    take_region_jobs,
+    take_target_jobs,
+    upcoming_slots,
 )
 from app.airports import expand_city_airports
 from app.catalog import collapse_rio_jobs
 from app.collectors.azul import azul_session_ready, collect_azul_jobs
 from app.collectors.latam import collect_latam_jobs, latam_session_ready
-from app.collectors.smiles import collect_smiles_jobs, smiles_session_ready
 from app.db import create_search, insert_results, now_iso, query_results, replace_miles_route, update_search
 
 LATAM_CURSOR_PATH = HARVEST_STATE_DIR / "cursor-latam.json"
@@ -124,35 +140,83 @@ def mark_ran(day: str, slot: str) -> None:
     _write_json(RUNS_PATH, runs)
 
 
+def can_live_collect() -> bool:
+    return not IS_VERCEL
+
+
 def next_slots(now: datetime | None = None) -> list[str]:
-    current = now or now_local()
-    hours = sorted(set(HARVEST_HOURS))
-    upcoming = []
-    for hour in hours:
-        candidate = current.replace(hour=hour, minute=0, second=0, microsecond=0)
-        if candidate <= current:
-            candidate += timedelta(days=1)
-        upcoming.append(candidate.strftime("%d/%m %H:%M"))
-    return upcoming
+    return [format_slot_label(slot) for slot in upcoming_slots(limit=8, now=now)]
 
 
 def harvest_status() -> dict[str, Any]:
     last = latest_run()
+    programs = [name for name in HARVEST_PROGRAMS if name in {"latam", "azul"}]
     return {
         "hours": list(HARVEST_HOURS),
         "max_requests": min(LATAM_MAX_ROUTES, LATAM_MAX_PER_RUN),
-        "origins": HARVEST_ORIGINS,
+        "origin": HARVEST_ORIGIN,
+        "origins": HARVEST_ORIGINS or [HARVEST_ORIGIN],
         "destinations": HARVEST_DESTINATIONS,
-        "programs": HARVEST_PROGRAMS,
+        "programs": programs,
         "last": last,
         "next": next_slots(),
+        "regions": region_choices(),
+        "picker": harvest_picker(),
+        "busy": LOCK.locked(),
+        "live": can_live_collect(),
         "folder": str(HARVEST_DIR),
         "has_key": has_live_cia_miles(),
         "latam_ready": latam_session_ready(),
         "azul_ready": azul_session_ready(),
-        "smiles_ready": smiles_session_ready(),
+        "smiles_ready": False,
         "latam_max": min(LATAM_MAX_ROUTES, LATAM_MAX_PER_RUN),
     }
+
+
+def _live_programs() -> list[str]:
+    return [name for name in HARVEST_PROGRAMS if name in {"latam", "azul"}]
+
+
+def jobs_for_command(
+    *,
+    region: str | None = None,
+    kind: str | None = None,
+    jobs: list[dict[str, Any]] | None = None,
+    scope: str | None = None,
+    target: str | None = None,
+) -> list[dict[str, Any]]:
+    if jobs:
+        picked = [dict(job) for job in jobs if str(job.get("program") or "").lower() in {"latam", "azul"}]
+        return collapse_rio_jobs(picked)
+    programs = _live_programs()
+    picked: list[dict[str, Any]] = []
+    scope_id = (scope or "").strip().lower()
+    target_id = (target or "").strip()
+    if scope_id in {"region", "country", "state", "airport"} and target_id:
+        for program in programs:
+            picked.extend(take_target_jobs(scope_id, target_id, program))
+        return collapse_rio_jobs(picked)
+    region_id = normalize_region(region) or ((region or "").strip() or None)
+    kind_id = normalize_kind(kind)
+    if region_id:
+        for program in programs:
+            picked.extend(take_region_jobs(region_id, program))
+    elif kind_id == "both":
+        national = next_region_id("national")
+        international = next_region_id("international")
+        for program in programs:
+            picked.extend(take_region_jobs(national, program))
+        for program in programs:
+            picked.extend(take_region_jobs(international, program))
+    elif kind_id in {"national", "international"}:
+        for program in programs:
+            picked.extend(take_kind_jobs(kind_id, program))
+    else:
+        upcoming = upcoming_slots(limit=1)
+        fallback = upcoming[0].get("region") if upcoming else next_region_id()
+        for program in programs:
+            picked.extend(take_region_jobs(str(fallback), program))
+    return collapse_rio_jobs(picked)
 
 
 def offers_from_cache(
@@ -205,30 +269,33 @@ def _save_ultima(local: datetime, slot: str, **extra: Any) -> dict[str, Any]:
     return payload
 
 
-async def run_harvest(slot: str) -> dict[str, Any]:
+async def run_harvest(
+    slot: str,
+    *,
+    kind: str | None = None,
+    region: str | None = None,
+    jobs: list[dict[str, Any]] | None = None,
+    search_id: int | None = None,
+    scope: str | None = None,
+    target: str | None = None,
+) -> dict[str, Any]:
     async with LOCK:
         local = now_local()
         notes: list[str] = []
-        latam_jobs: list[dict[str, Any]] = []
-        azul_jobs: list[dict[str, Any]] = []
-        smiles_jobs: list[dict[str, Any]] = []
-        if "latam" in HARVEST_PROGRAMS:
-            if latam_session_ready():
-                latam_jobs = take_jobs(min(LATAM_MAX_ROUTES, LATAM_MAX_PER_RUN), ["latam"], LATAM_CURSOR_PATH)
+        planned = jobs_for_command(region=region, kind=kind, jobs=jobs, scope=scope, target=target)
+        latam_jobs = [job for job in planned if job.get("program") == "latam"]
+        azul_jobs = [job for job in planned if job.get("program") == "azul"]
+        if latam_jobs and not latam_session_ready():
+            if search_id is None:
+                notes.append(
+                    "LATAM: cookies da sessão não estão salvos. Entre você no Chrome: python3 -m app.collectors.latam login"
+                )
+                latam_jobs = []
             else:
-                notes.append("LATAM: faça login com python3 -m app.collectors.latam login")
-        if "azul" in HARVEST_PROGRAMS:
-            if azul_session_ready():
-                azul_jobs = take_jobs(min(LATAM_MAX_ROUTES, LATAM_MAX_PER_RUN), ["azul"], AZUL_CURSOR_PATH)
-            else:
-                notes.append("Azul: faça login com python3 -m app.collectors.azul login")
-        if "smiles" in HARVEST_PROGRAMS:
-            if smiles_session_ready():
-                smiles_jobs = take_jobs(min(LATAM_MAX_ROUTES, LATAM_MAX_PER_RUN), ["smiles"], SMILES_CURSOR_PATH)
-            else:
-                notes.append("GOL/Smiles: faça login com python3 -m app.collectors.smiles login")
-
-        all_jobs = latam_jobs + azul_jobs + smiles_jobs
+                notes.append(
+                    "LATAM: se pedir login, entre você no Chrome. Não preencho senha."
+                )
+        all_jobs = latam_jobs + azul_jobs
         if not all_jobs:
             summary = _save_ultima(
                 local,
@@ -239,26 +306,47 @@ async def run_harvest(slot: str) -> dict[str, Any]:
                 stopped="; ".join(notes) or "nada para coletar",
                 jobs=[],
             )
-            return {"ok": False, **summary}
+            if search_id:
+                update_search(
+                    search_id,
+                    status="error",
+                    progress="; ".join(notes) or "Nada para coletar",
+                    error="; ".join(notes) or "nada para coletar",
+                )
+            return {"ok": False, **summary, "search_id": search_id}
 
-        search_id = create_search(
-            {
-                "origins": sorted({job["origin"] for job in all_jobs}) or HARVEST_ORIGINS,
-                "destinations": sorted({job["destination"] for job in all_jobs}) or HARVEST_DESTINATIONS,
-                "trip_type": "one_way",
-                "date_mode": "flex",
-                "date_start": None,
-                "date_end": None,
-                "stay_nights": 7,
-                "cabin": "economy",
-                "include_cash": False,
-                "include_miles": True,
-            }
+        trip_type = (
+            "round_trip"
+            if any(job.get("return_day") or job.get("return_date") for job in all_jobs)
+            else "one_way"
         )
+        if search_id is None:
+            search_id = create_search(
+                {
+                    "origins": sorted({job["origin"] for job in all_jobs}) or [HARVEST_ORIGIN],
+                    "destinations": sorted({job["destination"] for job in all_jobs}),
+                    "trip_type": trip_type,
+                    "date_mode": "specific",
+                    "date_start": next((job.get("day") for job in all_jobs if job.get("day")), None),
+                    "date_end": next(
+                        (
+                            job.get("return_day") or job.get("return_date")
+                            for job in all_jobs
+                            if job.get("return_day") or job.get("return_date")
+                        ),
+                        None,
+                    ),
+                    "stay_nights": 7,
+                    "cabin": "economy",
+                    "include_cash": False,
+                    "include_miles": True,
+                }
+            )
+        label = region or kind or slot
         update_search(
             search_id,
             status="running",
-            progress=f"Coleta {slot}: {len(latam_jobs)} LATAM + {len(azul_jobs)} Azul + {len(smiles_jobs)} GOL",
+            progress=f"Coleta {label}: {len(latam_jobs)} LATAM + {len(azul_jobs)} Azul",
         )
         found_at = now_iso()
         saved = 0
@@ -331,14 +419,14 @@ async def run_harvest(slot: str) -> dict[str, Any]:
                 }
             )
 
-        async def run_local(title: str, jobs: list[dict[str, Any]], collect, program: str) -> None:
+        async def run_local(title: str, batch: list[dict[str, Any]], collect, program: str) -> None:
             nonlocal stopped
-            if not jobs:
+            if not batch or stopped:
                 return
-            update_search(search_id, progress=f"Coleta {title} no site da cia ({len(jobs)} rotas)")
+            update_search(search_id, progress=f"Coleta {title} no site da cia ({len(batch)} rotas)")
             dest = HARVEST_DIR / program
             try:
-                collected = await collect(jobs, dest)
+                collected = await collect(batch, dest)
             except Exception as exc:
                 notes.append(f"{title} falhou: {exc}")
                 stopped = str(exc)
@@ -357,9 +445,14 @@ async def run_harvest(slot: str) -> dict[str, Any]:
                     stopped = reason
                     break
 
-        await run_local("LATAM", latam_jobs, collect_latam_jobs, "latam")
-        await run_local("Azul", azul_jobs, collect_azul_jobs, "azul")
-        await run_local("GOL/Smiles", smiles_jobs, collect_smiles_jobs, "smiles")
+        national_latam = [job for job in latam_jobs if job.get("kind") != "international"]
+        international_latam = [job for job in latam_jobs if job.get("kind") == "international"]
+        national_azul = [job for job in azul_jobs if job.get("kind") != "international"]
+        international_azul = [job for job in azul_jobs if job.get("kind") == "international"]
+        await run_local("LATAM nacional", national_latam, collect_latam_jobs, "latam")
+        await run_local("Azul nacional", national_azul, collect_azul_jobs, "azul")
+        await run_local("LATAM internacional", international_latam, collect_latam_jobs, "latam")
+        await run_local("Azul internacional", international_azul, collect_azul_jobs, "azul")
 
         summary = _save_ultima(
             local,
@@ -372,25 +465,94 @@ async def run_harvest(slot: str) -> dict[str, Any]:
             stopped=stopped or ("; ".join(notes) if notes else None),
             jobs=log,
         )
-        if slot in {f"{hour:02d}" for hour in HARVEST_HOURS} or slot in {"00", "12"}:
-            mark_ran(local.strftime("%Y-%m-%d"), slot)
-        progress = f"Coleta {slot}: {offers_count} ofertas em {saved} rotas"
+        mark_ran(local.strftime("%Y-%m-%d"), slot)
+        progress = f"Coleta {label}: {offers_count} ofertas em {saved} rotas"
         if stopped:
             progress += f" · {stopped}"
         update_search(search_id, status="done", progress=progress, error=None)
         return {"ok": True, **summary}
 
 
+async def _guarded_harvest(**kwargs: Any) -> None:
+    search_id = kwargs.get("search_id")
+    try:
+        await run_harvest(str(kwargs.pop("slot", "pedido")), **kwargs)
+    except Exception as exc:
+        if search_id:
+            update_search(search_id, status="error", progress="Falhou", error=str(exc))
+
+
+def start_harvest(
+    slot: str,
+    *,
+    kind: str | None = None,
+    region: str | None = None,
+    jobs: list[dict[str, Any]] | None = None,
+    payload: dict[str, Any] | None = None,
+    scope: str | None = None,
+    target: str | None = None,
+) -> int:
+    planned = jobs_for_command(region=region, kind=kind, jobs=jobs, scope=scope, target=target)
+    trip_type = (
+        "round_trip"
+        if any(job.get("return_day") or job.get("return_date") for job in planned)
+        else "one_way"
+    )
+    search_id = create_search(
+        payload
+        or {
+            "origins": sorted({job["origin"] for job in planned}) or [HARVEST_ORIGIN],
+            "destinations": sorted({job["destination"] for job in planned}),
+            "trip_type": trip_type,
+            "date_mode": "specific",
+            "date_start": next((job.get("day") for job in planned if job.get("day")), None),
+            "date_end": next(
+                (
+                    job.get("return_day") or job.get("return_date")
+                    for job in planned
+                    if job.get("return_day") or job.get("return_date")
+                ),
+                None,
+            ),
+            "stay_nights": 7,
+            "cabin": "economy",
+            "include_cash": False,
+            "include_miles": True,
+        }
+    )
+    update_search(
+        search_id,
+        status="queued",
+        progress="Na fila do Chrome. A página atualiza sozinha quando gravar as milhas.",
+    )
+    asyncio.create_task(
+        _guarded_harvest(
+            slot=slot,
+            kind=kind,
+            region=region,
+            jobs=jobs,
+            search_id=search_id,
+            scope=scope,
+            target=target,
+        )
+    )
+    return search_id
+
+
 async def harvest_scheduler() -> None:
+    ensure_agenda()
     while True:
         try:
-            local = now_local()
-            day = local.strftime("%Y-%m-%d")
-            for hour in HARVEST_HOURS:
-                if local.hour == hour and local.minute < 8:
-                    slot = f"{hour:02d}"
-                    if not already_ran(day, slot) and not LOCK.locked():
-                        await run_harvest(slot)
+            if not LOCK.locked():
+                due = due_slots()
+                if due:
+                    slot = due[0]
+                    await run_harvest(
+                        slot["id"],
+                        kind=slot.get("kind"),
+                        region=slot.get("region"),
+                    )
+                    mark_slot_done(slot["id"])
         except Exception:
             pass
         await asyncio.sleep(30)

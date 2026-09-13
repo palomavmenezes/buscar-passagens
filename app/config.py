@@ -1,10 +1,16 @@
 from pathlib import Path
 import os
+import sys
 
 from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env")
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except Exception:
+    pass
 
 IS_VERCEL = os.getenv("VERCEL") == "1"
 ENABLE_HARVEST = os.getenv("ENABLE_HARVEST", "0" if IS_VERCEL else "1") == "1"
@@ -35,7 +41,7 @@ GECKOAPI_API_KEY = os.getenv("GECKOAPI_API_KEY", "").strip()
 HOST = os.getenv("HOST", "127.0.0.1")
 PORT = int(os.getenv("PORT", "8765"))
 
-DEFAULT_ORIGINS = ["GIG", "SDU", "VIX", "GRU"]
+DEFAULT_ORIGINS = ["GIG", "SDU", "RIO", "VIX", "GRU", "SAO"]
 MAX_FLEX_DAYS = 180
 MAX_YEAR_DAYS = 365
 DATE_MODES = ("flex", "year", "month", "specific")
@@ -58,17 +64,18 @@ HARVEST_BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 MIN_PUBLISH_MILES = 5000
 HARVEST_HOURS = tuple(
     int(part.strip())
-    for part in os.getenv("HARVEST_HOURS", "0,12").split(",")
+    for part in os.getenv("HARVEST_HOURS", "").split(",")
     if part.strip().isdigit()
-) or (0, 12)
+)
 HARVEST_MAX_REQUESTS = max(1, int(os.getenv("HARVEST_MAX_REQUESTS", "4")))
 HARVEST_CREDIT_COST = max(1, int(os.getenv("HARVEST_CREDIT_COST", "5")))
 HARVEST_CREDIT_RESERVE = max(0, int(os.getenv("HARVEST_CREDIT_RESERVE", "10")))
+HARVEST_ORIGIN = os.getenv("HARVEST_ORIGIN", "GIG").strip().upper() or "GIG"
 HARVEST_ORIGINS = [
     code.strip().upper()
-    for code in os.getenv("HARVEST_ORIGINS", "GIG,GRU").split(",")
+    for code in os.getenv("HARVEST_ORIGINS", HARVEST_ORIGIN).split(",")
     if code.strip()
-]
+] or [HARVEST_ORIGIN]
 HARVEST_DESTINATIONS = [
     code.strip().upper()
     for code in os.getenv("HARVEST_DESTINATIONS", "SSA,FOR,REC,LIS,EZE").split(",")
@@ -76,9 +83,9 @@ HARVEST_DESTINATIONS = [
 ]
 HARVEST_PROGRAMS = [
     name.strip().lower()
-    for name in os.getenv("HARVEST_PROGRAMS", "azul,latam").split(",")
+    for name in os.getenv("HARVEST_PROGRAMS", "latam").split(",")
     if name.strip()
-]
+] or ["latam"]
 HARVEST_DATE_OFFSETS = [
     int(part.strip())
     for part in os.getenv("HARVEST_DATE_OFFSETS", "30,90").split(",")
@@ -87,6 +94,7 @@ HARVEST_DATE_OFFSETS = [
 HARVEST_TZ = os.getenv("HARVEST_TZ", "America/Sao_Paulo")
 LATAM_PROFILE_DIR = DATA_DIR / "latam-chrome-profile"
 AZUL_PROFILE_DIR = DATA_DIR / "azul-chrome-profile"
+AZUL_GUEST_PROFILE_DIR = DATA_DIR / "azul-chrome-guest"
 SMILES_PROFILE_DIR = DATA_DIR / "smiles-chrome-profile"
 LATAM_MAX_ROUTES = max(1, int(os.getenv("LATAM_MAX_ROUTES", "6")))
 LATAM_MAX_PER_RUN = max(1, int(os.getenv("LATAM_MAX_PER_RUN", "6")))
@@ -196,7 +204,4 @@ def has_miles_provider() -> bool:
 
 
 def has_live_cia_miles() -> bool:
-    return any(
-        (folder / ".logged_in").exists()
-        for folder in (LATAM_PROFILE_DIR, AZUL_PROFILE_DIR, SMILES_PROFILE_DIR)
-    )
+    return True
