@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import Any
 
 from app.config import DATA_DIR
-from app.dates import friday_monday_weekends, month_sample_dates, parse_date
-from app.airports import CITY_AIRPORTS, CITY_CODE_PROGRAMS
+from app.dates import date_span, friday_monday_weekends, month_sample_dates, parse_date
+from app.airports import AIRPORTS, BRAZIL_STATES, CITY_AIRPORTS, CITY_CODE_PROGRAMS, normalize_city_token, same_city
 
 CATALOG_PATH = DATA_DIR / "routes.json"
 
@@ -26,7 +26,16 @@ def save_catalog(catalog: dict[str, Any], path: Path | None = None) -> Path:
 
 
 ALL_PROGRAMS = ("latam", "azul", "smiles")
-RIO_SKIP = {"GIG", "SDU", "RIO"}
+
+
+def city_skip_codes(origin: str | None) -> set[str]:
+    token = normalize_city_token(origin)
+    skip: set[str] = set()
+    for city, members in CITY_AIRPORTS.items():
+        group = {city, *members}
+        if token in group:
+            skip.update(group)
+    return skip
 
 
 def airport_programs(item: dict[str, Any]) -> tuple[str, ...]:
@@ -42,11 +51,25 @@ def serves_program(item: dict[str, Any], program: str | None) -> bool:
     return program.lower() in airport_programs(item)
 
 
+def place_meta(iata: str, kind: str = "national") -> dict[str, str]:
+    code = (iata or "").upper()
+    info = AIRPORTS.get(code) or {}
+    country = str(info.get("country") or ("Brasil" if kind != "international" else ""))
+    state_id, state = BRAZIL_STATES.get(code, ("", ""))
+    return {
+        "country": country,
+        "country_id": _fold(country).replace(" ", "-"),
+        "state": state,
+        "state_id": state_id.upper() if state_id else "",
+    }
+
+
 def catalog_airports(catalog: dict[str, Any] | None = None, program: str | None = None) -> list[dict[str, Any]]:
     data = catalog or load_catalog()
     airports: list[dict[str, Any]] = []
     seen: set[str] = set()
     for region in data.get("regions") or []:
+        kind = region.get("kind") or "national"
         for airport in region.get("airports") or []:
             if not serves_program(airport, program):
                 continue
@@ -54,16 +77,16 @@ def catalog_airports(catalog: dict[str, Any] | None = None, program: str | None 
             if not code or code in seen:
                 continue
             seen.add(code)
-            airports.append(
-                {
-                    "iata": code,
-                    "city": airport.get("city") or code,
-                    "region": region.get("id"),
-                    "region_label": region.get("label"),
-                    "kind": region.get("kind") or "national",
-                    "programs": list(airport_programs(airport)),
-                }
-            )
+            item = {
+                "iata": code,
+                "city": airport.get("city") or code,
+                "region": region.get("id"),
+                "region_label": region.get("label"),
+                "kind": kind,
+                "programs": list(airport_programs(airport)),
+            }
+            item.update(place_meta(code, kind))
+            airports.append(item)
     return airports
 
 
@@ -73,9 +96,7 @@ def region_destinations(
     origin: str | None = None,
 ) -> list[tuple[str, str]]:
     origin_code = (origin or "").strip().upper()
-    skip = set(CITY_AIRPORTS.get(origin_code) or ())
-    if origin_code in RIO_SKIP:
-        skip.update(RIO_SKIP)
+    skip = city_skip_codes(origin_code)
     dests: list[tuple[str, str]] = []
     for airport in region.get("airports") or []:
         if not serves_program(airport, program):
@@ -242,6 +263,21 @@ def resolve_destinations(
 ) -> list[dict[str, Any]]:
     data = catalog or load_catalog()
     token = _fold(where)
+    city = normalize_city_token(where)
+    if city in CITY_AIRPORTS:
+        info = CITY_AIRPORTS[city]
+        label = "Rio de Janeiro" if city == "RIO" else "São Paulo"
+        return [
+            {
+                "iata": city,
+                "city": label,
+                "region": "sudeste",
+                "region_label": "Sudeste",
+                "kind": "national",
+                "programs": ["latam", "azul"],
+                "search_airports": list(info),
+            }
+        ]
     airports = catalog_airports(data, program=program)
     if token in AREA_AIRPORTS:
         wanted = {code.upper() for code in AREA_AIRPORTS[token]}
@@ -265,7 +301,7 @@ def resolve_destinations(
     return matched
 
 
-def _leg_job(origin: str, dest: str, airport: dict[str, Any], day: date, leg: str) -> dict[str, Any]:
+def _leg_job(origin: str, dest: str, airport: dict[str, Any], day: date, leg: str, program: str = "latam") -> dict[str, Any]:
     return {
         "origin": origin,
         "destination": dest,
@@ -275,14 +311,13 @@ def _leg_job(origin: str, dest: str, airport: dict[str, Any], day: date, leg: st
         "kind": airport["kind"],
         "offset": 0,
         "day": day.isoformat(),
-        "program": "latam",
+        "program": program,
         "leg": leg,
     }
 
 
-def collapse_rio_jobs(jobs: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Uma busca LATAM/Azul/GOL com RIO cobre GIG e SDU na mesma rota e datas."""
-    rio = set(CITY_AIRPORTS["RIO"])
+def collapse_city_jobs(jobs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Uma busca LATAM/Azul com RIO ou SAO cobre todos os aeroportos da cidade."""
 
     def job_key(job: dict[str, Any]) -> tuple[str, str, str, str, str]:
         back = str(job.get("return_day") or job.get("return_date") or "")
@@ -290,43 +325,62 @@ def collapse_rio_jobs(jobs: list[dict[str, Any]]) -> list[dict[str, Any]]:
         prog = str(job.get("program") or "")
         return (job["origin"], job["destination"], day, back, prog)
 
-    index = {job_key(job): job for job in jobs}
     used: set[tuple[str, str, str, str, str]] = set()
     collapsed: list[dict[str, Any]] = []
-    for job in jobs:
+    remaining = [job for job in jobs if job]
+
+    def unused(job: dict[str, Any]) -> bool:
+        return job_key(job) not in used
+
+    for city, members in CITY_AIRPORTS.items():
+        member_set = set(members)
+        groups: dict[tuple[str, str, str, str, str], list[dict[str, Any]]] = {}
+        for job in remaining:
+            if not unused(job):
+                continue
+            prog = str(job.get("program") or "")
+            if prog and prog not in CITY_CODE_PROGRAMS:
+                continue
+            day = str(job.get("day") or job.get("offset") or "")
+            back = str(job.get("return_day") or job.get("return_date") or "")
+            origin = job["origin"]
+            dest = job["destination"]
+            if origin in member_set:
+                groups.setdefault(("out", dest, day, back, prog), []).append(job)
+            elif dest in member_set:
+                groups.setdefault(("in", origin, day, back, prog), []).append(job)
+        for (side, other, day, back, prog), group in groups.items():
+            codes = {
+                (item["origin"] if side == "out" else item["destination"])
+                for item in group
+            }
+            if len(codes) < 2:
+                continue
+            merged = dict(group[0])
+            if side == "out":
+                merged["origin"] = city
+            else:
+                merged["destination"] = city
+            merged["search_airports"] = list(members)
+            if city == "SAO":
+                merged["city"] = "São Paulo"
+            elif city == "RIO":
+                merged["city"] = "Rio de Janeiro"
+            collapsed.append(merged)
+            for item in group:
+                used.add(job_key(item))
+
+    for job in remaining:
         key = job_key(job)
         if key in used:
             continue
-        origin, dest, day, back, prog = key
-        if prog and prog not in CITY_CODE_PROGRAMS:
-            used.add(key)
-            collapsed.append(job)
-            continue
-        merged = None
-        if origin in rio:
-            peer = "SDU" if origin == "GIG" else "GIG"
-            peer_key = (peer, dest, day, back, prog)
-            if peer_key in index:
-                merged = dict(job)
-                merged["origin"] = "RIO"
-                merged["search_airports"] = ["GIG", "SDU"]
-                used.add(key)
-                used.add(peer_key)
-        elif dest in rio:
-            peer = "SDU" if dest == "GIG" else "GIG"
-            peer_key = (origin, peer, day, back, prog)
-            if peer_key in index:
-                merged = dict(job)
-                merged["destination"] = "RIO"
-                merged["search_airports"] = ["GIG", "SDU"]
-                used.add(key)
-                used.add(peer_key)
-        if merged:
-            collapsed.append(merged)
-        else:
-            used.add(key)
-            collapsed.append(job)
+        used.add(key)
+        collapsed.append(job)
     return collapsed
+
+
+def collapse_rio_jobs(jobs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return collapse_city_jobs(jobs)
 
 
 def requested_jobs(
@@ -338,20 +392,26 @@ def requested_jobs(
     invert: bool = True,
     weekends: bool = False,
     catalog: dict[str, Any] | None = None,
+    program: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    return_from: str | None = None,
+    return_to: str | None = None,
 ) -> list[dict[str, Any]]:
     data = catalog or load_catalog()
-    start = origin.strip().upper()
+    start = normalize_city_token(origin) or origin.strip().upper()
+    prog = (program or "latam").lower()
     airports: list[dict[str, Any]] = []
     seen: set[str] = set()
     for token in destinations or []:
-        for item in resolve_destinations(token, data):
-            if item["iata"] == start or item["iata"] in seen:
+        for item in resolve_destinations(token, data, program=prog):
+            if same_city(item["iata"], start) or item["iata"] in seen:
                 continue
             seen.add(item["iata"])
             airports.append(item)
     if where:
-        for item in resolve_destinations(where, data):
-            if item["iata"] == start or item["iata"] in seen:
+        for item in resolve_destinations(where, data, program=prog):
+            if same_city(item["iata"], start) or item["iata"] in seen:
                 continue
             seen.add(item["iata"])
             airports.append(item)
@@ -362,9 +422,19 @@ def requested_jobs(
         for airport in airports:
             dest = airport["iata"]
             for friday, monday in friday_monday_weekends(month):
-                jobs.append(_leg_job(start, dest, airport, friday, "ida"))
+                jobs.append(_leg_job(start, dest, airport, friday, "ida", prog))
                 if invert:
-                    jobs.append(_leg_job(dest, start, airport, monday, "volta"))
+                    jobs.append(_leg_job(dest, start, airport, monday, "volta", prog))
+        return jobs
+    out_days = date_span(date_from, date_to)
+    back_days = date_span(return_from, return_to)
+    if out_days or back_days:
+        for airport in airports:
+            dest = airport["iata"]
+            for day in out_days:
+                jobs.append(_leg_job(start, dest, airport, day, "ida", prog))
+            for day in back_days:
+                jobs.append(_leg_job(dest, start, airport, day, "volta", prog))
         return jobs
     days: list[date] = []
     for raw in dates or []:
@@ -381,17 +451,17 @@ def requested_jobs(
         out_day, back_day = days[0], days[-1]
         for airport in airports:
             dest = airport["iata"]
-            jobs.append(_leg_job(start, dest, airport, out_day, "ida"))
+            jobs.append(_leg_job(start, dest, airport, out_day, "ida", prog))
         for airport in airports:
             dest = airport["iata"]
-            jobs.append(_leg_job(dest, start, airport, back_day, "volta"))
+            jobs.append(_leg_job(dest, start, airport, back_day, "volta", prog))
         return jobs
     for airport in airports:
         dest = airport["iata"]
         for day in days:
-            jobs.append(_leg_job(start, dest, airport, day, "ida"))
+            jobs.append(_leg_job(start, dest, airport, day, "ida", prog))
             if invert:
-                jobs.append(_leg_job(dest, start, airport, day, "volta"))
+                jobs.append(_leg_job(dest, start, airport, day, "volta", prog))
     return jobs
 
 
