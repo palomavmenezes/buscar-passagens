@@ -9,8 +9,8 @@ from app.airports import related_airports
 from app.config import DB_PATH
 
 CIA_MILES_FILTER = (
-    "(price_type != 'miles' OR IFNULL(miles_program, '') IN ('smiles', 'azul', 'latam'))"
-    " AND IFNULL(source, '') NOT IN ('seats.aero', 'demo')"
+    "(price_type != 'miles' OR IFNULL(miles_program, '') IN ('azul', 'latam'))"
+    " AND IFNULL(source, '') IN ('latampass', 'tudoazul', 'latam', 'azul')"
     " AND (price_type != 'miles' OR IFNULL(miles, 0) >= 5000)"
 )
 
@@ -125,6 +125,13 @@ def init_db() -> None:
             db.execute("ALTER TABLE results ADD COLUMN trip_kind TEXT")
         db.execute("DELETE FROM results WHERE IFNULL(source, '') IN ('demo', 'seats.aero')")
         db.execute("DELETE FROM results WHERE price_type = 'cash'")
+        db.execute(
+            """
+            DELETE FROM results
+            WHERE IFNULL(miles_program, '') NOT IN ('latam', 'azul')
+               OR IFNULL(source, '') NOT IN ('latampass', 'tudoazul', 'latam', 'azul')
+            """
+        )
         db.execute("DELETE FROM searches WHERE demo = 1")
         db.execute(
             """

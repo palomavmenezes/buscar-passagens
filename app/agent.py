@@ -25,7 +25,7 @@ async def run_search(search_id: int, payload: dict[str, Any]) -> None:
                 pass
         origins = payload["origins"]
         destinations = payload["destinations"]
-        programs = payload.get("programs") or ["smiles", "azul", "latam"]
+        programs = payload.get("programs") or ["azul", "latam"]
 
         found_at = now_iso()
         rows: list[dict[str, Any]] = []
