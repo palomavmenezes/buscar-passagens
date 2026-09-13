@@ -5,12 +5,14 @@ import json
 import os
 import random
 import re
+import time
 from datetime import date
 from pathlib import Path
 from typing import Any, Callable
 
-from app.airports import expand_city_airports
+from app.airports import AIRPORTS, CITY_AIRPORTS, city_search_note, expand_city_airports
 from app.collectors.human import (
+    azul_gap_seconds,
     browse_results,
     host_page,
     human_click,
@@ -57,6 +59,21 @@ async def launch_context(playwright, profile_dir: Path, headless: bool | None = 
     )
 
 
+async def launch_fresh_context(playwright, headless: bool | None = None):
+    print("Abro um Chrome do zero, sem cookies nem perfil salvo.", flush=True)
+    browser = await playwright.chromium.launch(
+        channel="chrome",
+        headless=CIA_HEADLESS if headless is None else headless,
+        args=chromium_args(),
+        ignore_default_args=["--enable-automation"],
+    )
+    return await browser.new_context(
+        locale="pt-BR",
+        timezone_id="America/Sao_Paulo",
+        viewport={"width": 1280, "height": 900},
+    )
+
+
 async def safe_goto(page, url: str) -> None:
     try:
         await page.goto(url, wait_until="domcontentloaded", timeout=90000)
@@ -74,8 +91,8 @@ async def pause(page, low: float = 0.4, high: float = 1.1) -> None:
     await human_pause(page, low, high)
 
 
-async def rest_on_results_then_home(page, home: str, seconds: float) -> bool:
-    return await rest_like_a_person(page, home, seconds, safe_goto)
+async def rest_on_results_then_home(page, home: str, seconds: float, vary: bool = True) -> bool:
+    return await rest_like_a_person(page, home, seconds, safe_goto, vary=vary)
 
 
 async def first_visible(locator, timeout: int = 2000):
@@ -464,14 +481,26 @@ async def _wait_for_human_challenge(
     logged_hints: tuple[str, ...],
     home: str,
     timeout_s: float = 20 * 60,
+    reason: str | None = None,
 ) -> bool:
-    kind = await _page_has_challenge(page) or "2fa"
-    pedido = "captcha" if kind == "captcha" else "código de e-mail ou WhatsApp"
-    print(
-        f"A {program.upper()} pediu {pedido}. Deixo o Chrome aberto. "
-        "Quando o código chegar, preencha aí. Eu espero até 20 minutos.",
-        flush=True,
-    )
+    kind = await _page_has_challenge(page)
+    if reason == "login" and not kind:
+        print(
+            f"A {program.upper()} pediu login. Não preencho senha nem .env. "
+            "Entre você neste Chrome. Eu espero até 20 minutos e sigo com os cookies salvos.",
+            flush=True,
+        )
+        ping = "Chrome aberto; ainda espero você entrar ({left}s)."
+        timeout_msg = f"Passei 20 min e o login da {program.upper()} não aconteceu."
+    else:
+        pedido = "captcha" if kind == "captcha" else "código de e-mail ou WhatsApp"
+        print(
+            f"A {program.upper()} pediu {pedido}. Deixo o Chrome aberto. "
+            "Quando o código chegar, preencha aí. Eu espero até 20 minutos.",
+            flush=True,
+        )
+        ping = "Chrome aberto; ainda espero você colocar o código ({left}s)."
+        timeout_msg = f"Passei 20 min e o código da {program.upper()} não confirmou a sessão."
     deadline = asyncio.get_event_loop().time() + timeout_s
     last_ping = 0.0
     while asyncio.get_event_loop().time() < deadline:
@@ -487,17 +516,14 @@ async def _wait_for_human_challenge(
                     await safe_goto(page, home)
                 except Exception:
                     pass
-            print(f"Login da {program.upper()} feito. Sigo a busca.", flush=True)
+            print(f"Sessão da {program.upper()} pronta. Sigo a busca.", flush=True)
             return True
         now = asyncio.get_event_loop().time()
         if now - last_ping >= 30:
             left = int(deadline - now)
-            print(f"Chrome aberto; ainda espero você colocar o código ({left}s).", flush=True)
+            print(ping.format(left=left), flush=True)
             last_ping = now
-    print(
-        f"Passei 20 min e o código da {program.upper()} não confirmou a sessão.",
-        flush=True,
-    )
+    print(timeout_msg, flush=True)
     return False
 
 
@@ -536,15 +562,55 @@ async def _submit_login(root) -> str | None:
     return None
 
 
+async def _ensure_latam_cookies(page, home: str, session_mark: Path | None = None) -> bool:
+    """Usa cookies do perfil. Se a LATAM pedir login, espera a Paloma entrar; não preenche senha."""
+    logged_hints = LOGGED_BY_PROGRAM["latam"]
+    href = _login_href(page)
+    body = await _login_body(page)
+    on_login = _on_login_page(href)
+    form_open = await _login_form_visible(page)
+    logged_in = await already_logged(page, logged_hints, "latam")
+    latam_gate = await _latam_login_gate_visible(page)
+    logged_out = (
+        on_login
+        or form_open
+        or latam_gate
+        or _looks_logged_out_cta(body, "latam")
+        or await _logged_out_control_visible(page, "latam")
+    )
+    if logged_in and not logged_out:
+        _mark_session(session_mark)
+        print("Já estou logado na LATAM. Uso os cookies da sessão. Não preencho senha.", flush=True)
+        return True
+    if not logged_out:
+        print("Não estou deslogado na LATAM; sigo com os cookies salvos.", flush=True)
+        return True
+    challenge = await _page_has_challenge(page)
+    if challenge:
+        return await _wait_for_human_challenge(page, "latam", session_mark, logged_hints, home)
+    if not on_login and not form_open:
+        opened = await _open_latam_login_ui(page)
+        if opened:
+            print("Abri a tela de login da LATAM para você entrar. Não preencho senha.", flush=True)
+            await page.wait_for_timeout(800)
+    challenge = await _page_has_challenge(page)
+    if challenge:
+        return await _wait_for_human_challenge(page, "latam", session_mark, logged_hints, home)
+    return await _wait_for_human_challenge(
+        page, "latam", session_mark, logged_hints, home, reason="login"
+    )
+
+
 async def login_with_env(page, program: str, home: str, session_mark: Path | None = None) -> bool:
-    """Só preenche usuário/senha se a sessão estiver fora. Se já estiver logado, não mexe."""
+    """Azul: visitante, sem conta. LATAM: só cookies; login manual se precisar. Smiles: ainda pode usar .env."""
     program_key = (program or "").strip().lower()
+    if program_key == "azul":
+        await dismiss_banners(page)
+        print("Busco a Azul como visitante, sem entrar na conta.", flush=True)
+        return True
     if program_key == "latam":
         await dismiss_banners(page)
-    if program_key == "azul":
-        ready = await _azul_ready_to_search(page, session_mark)
-        if ready is not None:
-            return ready
+        return await _ensure_latam_cookies(page, home, session_mark)
     user, password = airline_credentials(program_key)
     logged_hints = LOGGED_BY_PROGRAM.get(program_key) or LOGGED_BY_PROGRAM["latam"]
     href = _login_href(page)
@@ -727,15 +793,166 @@ async def click_home_search(page, labels: tuple[str, ...]) -> str | None:
     return "enter"
 
 
+COOKIE_ACCEPT_LABELS = (
+    "^aceitar todos os cookies$",
+    "^aceite todos os cookies$",
+    "^accept all cookies$",
+)
+COOKIE_BANNER = (
+    "#onetrust-banner-sdk",
+    "#onetrust-accept-btn-handler",
+    "#onetrust-pc-sdk",
+    "#onetrust-consent-sdk",
+)
+
+
+def _cookie_roots(page):
+    yield page
+    for frame in page.frames:
+        if frame == page.main_frame:
+            continue
+        yield frame
+
+
+COOKIE_CLICK_JS = r"""() => {
+  const visible = (el) => {
+    if (!el) return false;
+    const st = window.getComputedStyle(el);
+    if (st.display === 'none' || st.visibility === 'hidden' || Number(st.opacity) === 0) return false;
+    const r = el.getBoundingClientRect();
+    return r.width > 4 && r.height > 4;
+  };
+  const labelOf = (el) => `${el.innerText || ''} ${el.getAttribute('aria-label') || ''}`.replace(/\s+/g, ' ').trim();
+  const isAccept = (el) => /^aceitar todos os cookies$|^aceite todos os cookies$|^accept all cookies$/i.test(labelOf(el));
+  const inFooter = (el) => {
+    const r = el.getBoundingClientRect();
+    return r.top > window.innerHeight * 0.62 || r.bottom > window.innerHeight - 140;
+  };
+  const named = [...document.querySelectorAll('button, a, [role="button"]')].filter((el) => visible(el) && isAccept(el));
+  const footerBtn = named.find(inFooter) || named[0];
+  const ot = document.querySelector('#onetrust-accept-btn-handler');
+  const btn = footerBtn || (visible(ot) ? ot : null);
+  if (btn) {
+    btn.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    btn.click();
+    return 'clicked';
+  }
+  const bar = [...document.querySelectorAll('#onetrust-banner-sdk, #onetrust-consent-sdk, [id*="onetrust"], div, section')].find((el) => {
+    const t = (el.innerText || '').replace(/\s+/g, ' ');
+    return visible(el) && /aceitar todos os cookies/i.test(t) && /configura/i.test(t);
+  });
+  return bar ? 'banner' : '';
+}"""
+
+
+async def _cookie_banner_visible(root) -> bool:
+    for selector in COOKIE_BANNER:
+        try:
+            loc = root.locator(selector)
+            if await loc.count() and await loc.first.is_visible(timeout=350):
+                return True
+        except Exception:
+            continue
+    try:
+        btn = root.get_by_role(
+            "button",
+            name=re.compile(r"^aceitar todos os cookies$|^aceite todos os cookies$|^accept all cookies$", re.I),
+        )
+        if await btn.count() and await btn.first.is_visible(timeout=350):
+            return True
+    except Exception:
+        pass
+    return False
+
+
+async def _click_cookie_accept(root, page) -> bool:
+    try:
+        btn = root.locator("#onetrust-accept-btn-handler")
+        if await btn.count() and await btn.first.is_visible(timeout=500):
+            if await human_click(btn.first, page=page, timeout=4000):
+                return True
+    except Exception:
+        pass
+    clicked = await click_named(root, COOKIE_ACCEPT_LABELS)
+    if clicked:
+        return True
+    try:
+        btn = root.get_by_role(
+            "button",
+            name=re.compile(r"^aceitar todos os cookies$|^aceite todos os cookies$|^accept all cookies$", re.I),
+        )
+        if await btn.count() and await btn.first.is_visible(timeout=400):
+            if await human_click(btn.first, page=page, timeout=4000):
+                return True
+    except Exception:
+        pass
+    return False
+
+
+async def accept_cookie_banner(page, wait_seconds: float = 12) -> bool:
+    print("Olho se apareceu o aviso de cookies nesta aba.", flush=True)
+    start = time.monotonic()
+    deadline = start + wait_seconds
+    saw = False
+    while time.monotonic() < deadline:
+        clicked = False
+        visible = False
+        for root in _cookie_roots(page):
+            try:
+                if await _cookie_banner_visible(root):
+                    visible = True
+                    saw = True
+            except Exception:
+                pass
+            if await _click_cookie_accept(root, page):
+                clicked = True
+                break
+        if not clicked:
+            try:
+                result = await page.evaluate(COOKIE_CLICK_JS)
+                if result == "clicked":
+                    clicked = True
+                elif result == "banner":
+                    saw = True
+                    visible = True
+            except Exception:
+                pass
+        if clicked:
+            await page.wait_for_timeout(800)
+            still = False
+            for root in _cookie_roots(page):
+                try:
+                    if await _cookie_banner_visible(root):
+                        still = True
+                        break
+                except Exception:
+                    pass
+            if still:
+                saw = True
+                continue
+            print("Aceitei todos os cookies.", flush=True)
+            return True
+        elapsed = time.monotonic() - start
+        give_up = wait_seconds if wait_seconds > 6 else min(4.0, wait_seconds)
+        if not saw and elapsed >= give_up:
+            break
+        if saw and not visible:
+            break
+        await page.wait_for_timeout(400)
+    if saw:
+        print("O aviso de cookies apareceu, mas não consegui aceitar.", flush=True)
+        return False
+    print("Não apareceu aviso de cookies.", flush=True)
+    return False
+
+
 async def dismiss_banners(page) -> None:
     await click_named(
         page,
         (
-            "aceite todos os cookies",
-            "aceitar todos os cookies",
-            "aceite todos",
-            "aceitar todos",
+            *COOKIE_ACCEPT_LABELS,
             "aceitar cookies",
+            "continuar sem aceitar",
             "^aceitar$",
             "^aceito$",
             "concordo",
@@ -826,6 +1043,60 @@ async def airport_selected(field, code: str) -> bool:
     return len(value) > len(token) + 2
 
 
+def _airport_type_hints(code: str) -> list[str]:
+    token = code.strip().upper()
+    hints = [token]
+    info = AIRPORTS.get(token) or {}
+    city = str(info.get("city") or "").split("(")[0].strip()
+    if city and city.upper() != token:
+        hints.append(city)
+    if token == "GIG":
+        hints.extend(["Galeão", "Galeao"])
+    if token == "RIO":
+        hints.extend(["Rio de Janeiro"])
+    if token == "SAO":
+        hints.append("São Paulo")
+    seen: set[str] = set()
+    out: list[str] = []
+    for item in hints:
+        key = item.casefold()
+        if key not in seen:
+            seen.add(key)
+            out.append(item)
+    return out
+
+
+async def find_airport_option(page, code: str):
+    typed = code.strip().upper()
+    city = str((AIRPORTS.get(typed) or {}).get("city") or "").split("(")[0].strip()
+    if typed in CITY_AIRPORTS:
+        patterns = [
+            re.compile(r"todos os aeroportos", re.I),
+            re.compile(rf"\b{re.escape(typed)}\b", re.I),
+        ]
+    else:
+        patterns = [re.compile(rf"\b{re.escape(typed)}\b", re.I)]
+        if city:
+            patterns.append(re.compile(re.escape(city), re.I))
+    queries = []
+    for pattern in patterns:
+        queries.extend(
+            [
+                page.get_by_role("option", name=pattern),
+                page.get_by_role("option").filter(has_text=pattern),
+                page.get_by_role("listitem").filter(has_text=pattern),
+                page.locator('[role="option"], [role="listitem"], li[id], [class*="option"], [class*="suggest"]').filter(
+                    has_text=pattern
+                ),
+            ]
+        )
+    for locator in queries:
+        option = await first_visible(locator, timeout=450)
+        if option is not None:
+            return option
+    return None
+
+
 async def fill_airport(page, root, labels: tuple[str, ...], code: str, extra=None, require_option: bool = False) -> bool:
     typed = code.strip().upper()
     await click_field_label(root, labels)
@@ -838,31 +1109,31 @@ async def fill_airport(page, root, labels: tuple[str, ...], code: str, extra=Non
         field = extra.first if extra is not None else None
     if field is None:
         return False
-    print(f"Digito {typed} para o select aparecer.", flush=True)
-    await human_type(page, field, typed)
-    option = None
-    for _ in range(8):
-        option = await first_visible(page.get_by_role("option", name=re.compile(rf"^{re.escape(typed)}\b", re.I)), timeout=700)
-        if option is None:
-            option = await first_visible(
-                page.get_by_role("option").filter(has_text=re.compile(rf"^{re.escape(typed)}\b", re.I)),
-                timeout=400,
-            )
+    for attempt, hint in enumerate(_airport_type_hints(typed)):
+        print(f"Digito {hint} para o select aparecer.", flush=True)
+        await human_type(page, field, hint)
+        await page.wait_for_timeout(700)
+        option = None
+        for _ in range(8):
+            option = await find_airport_option(page, typed)
+            if option is not None:
+                break
+            await page.wait_for_timeout(400)
         if option is not None:
-            break
-        await page.wait_for_timeout(400)
-    if option is None:
-        print(f"O select de {typed} não abriu depois de digitar.", flush=True)
+            await human_click(option, page=page)
+            await pause(page, 0.45, 0.9)
+            print(f"Selecionei {typed} no select.", flush=True)
+            return True
+        print(f"O select de {typed} não abriu depois de digitar {hint}.", flush=True)
+        if attempt + 1 < len(_airport_type_hints(typed)):
+            continue
         if require_option:
             return False
         await page.keyboard.press("ArrowDown")
         await pause(page, 0.2, 0.4)
         await page.keyboard.press("Enter")
         return True
-    await human_click(option, page=page)
-    await pause(page, 0.45, 0.9)
-    print(f"Selecionei {typed} no select.", flush=True)
-    return True
+    return False
 
 
 async def click_calendar_day(page, day: str) -> bool:
@@ -946,7 +1217,10 @@ async def pick_dates(page, outbound: str, inbound: str | None) -> bool:
 
 
 async def datepicker_open(page) -> bool:
-    confirm = page.get_by_role("button", name=re.compile(r"selecionar datas de ida e volta", re.I))
+    confirm = page.get_by_role(
+        "button",
+        name=re.compile(r"selecionar datas?( de ida( e volta)?)?", re.I),
+    )
     if await first_visible(confirm, timeout=250) is not None:
         return True
     if await first_visible(page.locator("[data-datepicker-next='true']"), timeout=200) is not None:
@@ -955,23 +1229,47 @@ async def datepicker_open(page) -> bool:
 
 
 async def close_datepicker(page) -> bool:
-    btn = page.get_by_role("button", name=re.compile(r"selecionar datas de ida e volta", re.I))
-    target = await first_visible(btn, timeout=5000)
+    labels = (
+        r"selecionar datas de ida e volta",
+        r"selecionar data de ida",
+        r"selecionar datas",
+        r"selecionar data",
+        r"^confirmar$",
+        r"^aplicar$",
+        r"^pronto$",
+        r"^ok$",
+    )
+    target = None
+    for label in labels:
+        pattern = re.compile(label, re.I)
+        target = await first_visible(page.get_by_role("button", name=pattern), timeout=600)
+        if target is None:
+            target = await first_visible(page.get_by_text(pattern), timeout=350)
+        if target is not None:
+            break
     if target is None:
-        target = await first_visible(
-            page.get_by_text(re.compile(r"^selecionar datas de ida e volta$", re.I)),
-            timeout=1500,
-        )
-    if target is None:
-        print("Não achei o botão Selecionar datas de ida e volta.", flush=True)
+        try:
+            await page.keyboard.press("Escape")
+            await page.wait_for_timeout(400)
+        except Exception:
+            pass
+        if not await datepicker_open(page):
+            return True
+        print("Não achei o botão para fechar o calendário.", flush=True)
         return False
     await human_click(target, page=page, timeout=4000)
-    print("Cliquei em Selecionar datas de ida e volta para fechar o calendário.", flush=True)
+    print("Fechei o calendário da Azul.", flush=True)
     await pause(page, 0.6, 1.0)
     for _ in range(20):
         if not await datepicker_open(page):
             return True
         await page.wait_for_timeout(200)
+    if await datepicker_open(page):
+        try:
+            await page.keyboard.press("Escape")
+            await page.wait_for_timeout(400)
+        except Exception:
+            pass
     return not await datepicker_open(page)
 
 
@@ -1299,6 +1597,8 @@ async def collect_home_jobs(
     wait_loops: int = 30,
     on_result=None,
     session_mark: Path | None = None,
+    fresh_session: bool = False,
+    startup_wait_seconds: float = 0,
 ) -> list[dict[str, Any]]:
     from playwright.async_api import async_playwright
 
@@ -1307,15 +1607,49 @@ async def collect_home_jobs(
     raw_dir.mkdir(parents=True, exist_ok=True)
     results: list[dict[str, Any]] = []
     async with async_playwright() as playwright:
-        context = await launch_context(playwright, profile_dir)
+        if fresh_session:
+            context = await launch_fresh_context(playwright)
+        else:
+            context = await launch_context(playwright, profile_dir)
         page = context.pages[0] if context.pages else await context.new_page()
         captured: dict[str, Any] = {}
         wanted: dict[str, str] = {"origin": "", "dest": "", "day": ""}
-        await safe_goto(page, home)
+        try:
+            await safe_goto(page, home)
+        except Exception as exc:
+            if not browser_closed(exc):
+                raise
+            print("O Chrome fechou ao abrir a home; espero e abro de novo.", flush=True)
+            try:
+                await context.close()
+            except Exception:
+                pass
+            await asyncio.sleep(2.5)
+            if fresh_session:
+                context = await launch_fresh_context(playwright)
+            else:
+                context = await launch_context(playwright, profile_dir)
+            page = context.pages[0] if context.pages else await context.new_page()
+            try:
+                await safe_goto(page, home)
+            except Exception as retry_exc:
+                if browser_closed(retry_exc):
+                    print("O Chrome fechou de novo. Paro esta leva.", flush=True)
+                    return results
+                raise
+        await accept_cookie_banner(page, wait_seconds=12)
         await dismiss_banners(page)
         await login_with_env(page, program, home, session_mark=session_mark)
         if program == "azul":
             await dismiss_account_overlay(page)
+        if startup_wait_seconds > 0:
+            print(
+                f"Janela aberta. Espero {int(startup_wait_seconds)}s e começo a busca.",
+                flush=True,
+            )
+            await page.wait_for_timeout(int(startup_wait_seconds * 1000))
+        await accept_cookie_banner(page, wait_seconds=8)
+        await dismiss_banners(page)
 
         async def on_response(response) -> None:
             url = response.url.lower()
@@ -1363,11 +1697,14 @@ async def collect_home_jobs(
             offers: list[Offer] = []
             try:
                 volta = f" / volta {return_day}" if return_day else ""
-                rio_note = " (RIO cobre GIG e SDU)" if origin == "RIO" or dest == "RIO" else ""
-                print(f"Home {label}: {origin} → {dest} {day}{volta}{rio_note}", flush=True)
+                city_note = city_search_note(origin, dest)
+                print(f"Home {label}: {origin} para {dest} {day}{volta}{city_note}", flush=True)
                 await safe_goto(page, home)
+                await accept_cookie_banner(page, wait_seconds=6)
                 await dismiss_banners(page)
                 if program == "azul":
+                    await page.wait_for_timeout(1600)
+                    await dismiss_banners(page)
                     await dismiss_account_overlay(page)
                 await pause(page, 1.6, 2.8)
                 await wander_mouse(page)
@@ -1377,14 +1714,24 @@ async def collect_home_jobs(
                 except Exception:
                     pass
                 if _on_login_page((page.url or "").lower(), body_text):
-                    await login_with_env(page, program, home, session_mark=session_mark)
+                    if program == "azul":
+                        print(
+                            "A Azul abriu login; volto à home como visitante, sem entrar na conta.",
+                            flush=True,
+                        )
+                        await safe_goto(page, home)
+                        await dismiss_banners(page)
+                    else:
+                        await login_with_env(page, program, home, session_mark=session_mark)
                     try:
                         body_text = (await page.inner_text("body")).lower()
                     except Exception:
                         body_text = ""
                 if any(hint in body_text for hint in blocked_hints):
+                    hit = next((hint for hint in blocked_hints if hint in body_text), "bloqueio")
+                    print(f"{label} mostrou bloqueio ({hit}) em {page.url}.", flush=True)
                     status = "throttled"
-                    payload = {"error": "throttled", "url": page.url}
+                    payload = {"error": "throttled", "url": page.url, "hint": hit}
                 else:
                     if program == "azul":
                         await dismiss_account_overlay(page)
@@ -1395,6 +1742,8 @@ async def collect_home_jobs(
                         trip = await click_named(page, oneway_labels)
                         print(f"Trecho: {trip or 'somente ida'}.", flush=True)
                     await pause(page, 0.4, 0.9)
+                    if program == "azul":
+                        await dismiss_banners(page)
                     origin_box = page.get_by_role("combobox", name=re.compile(r"^origem$", re.I))
                     dest_box = page.get_by_role("combobox", name=re.compile(r"^destino$", re.I))
                     if not await fill_airport(
@@ -1432,6 +1781,22 @@ async def collect_home_jobs(
                         await pause(page, 0.35, 0.7)
                     search = await click_home_search(page, search_labels)
                     print(f"Cliquei em buscar passagens ({search}).", flush=True)
+                    await pause(page, 1.2, 2.0)
+                    await dismiss_banners(page)
+                    if program == "azul":
+                        for _ in range(3):
+                            href = (page.url or "").lower()
+                            if "selecao-voo" in href or "select-flight" in href:
+                                break
+                            print("Ainda na home da Azul; aceito cookies se tiver e clico buscar de novo.", flush=True)
+                            await dismiss_banners(page)
+                            await click_home_search(page, search_labels)
+                            try:
+                                await page.wait_for_url(re.compile(r"selecao-voo|select-flight"), timeout=15000)
+                                break
+                            except Exception:
+                                await page.wait_for_timeout(1500)
+                        print(f"URL da busca Azul: {page.url}", flush=True)
                     text = ""
                     if results_miles_labels:
                         for _ in range(wait_loops):
@@ -1465,8 +1830,12 @@ async def collect_home_jobs(
                         low = (text or "").lower()
                         if any(hint in low for hint in blocked_hints) or "demorando mais" in low:
                             break
+                        skeleton = "@cidade" in low or "falta pouco para sua viagem" in low
+                        if skeleton:
+                            await page.wait_for_timeout(1000)
+                            continue
                         if read_page and await first_visible(
-                            page.get_by_text(re.compile(r"ver tarifas|voos encontrados", re.I)),
+                            page.get_by_text(re.compile(r"ver tarifas|voos encontrados|escolher seu voo|não encontramos|nao encontramos", re.I)),
                             timeout=400,
                         ):
                             break
@@ -1481,6 +1850,17 @@ async def collect_home_jobs(
                             break
                         await page.wait_for_timeout(1000)
                     if read_page:
+                        try:
+                            body_now = (await page.inner_text("body") or "").lower()
+                        except Exception:
+                            body_now = ""
+                        if "@cidade" in body_now or "falta pouco para sua viagem" in body_now:
+                            print("A lista da Azul ainda estava vazia; recarrego a busca uma vez.", flush=True)
+                            try:
+                                await page.reload(wait_until="domcontentloaded", timeout=90000)
+                                await page.wait_for_timeout(8000)
+                            except Exception:
+                                pass
                         await browse_results(page)
                         page_offers = await read_page(page, origin, dest, day, return_day)
                         if page_offers:
@@ -1489,6 +1869,8 @@ async def collect_home_jobs(
                                 f"Li {len(offers)} tarifas na tela (Pública/Diamante ou Tarifa), sem clicar em voo.",
                                 flush=True,
                             )
+                        elif captured.get("urls"):
+                            print(f"Rede Azul nesta busca: {captured.get('urls')[:8]}", flush=True)
                     payload["url"] = page.url
                     payload["network"] = captured.get("urls") or []
                     if captured.get("bff_url"):
@@ -1528,6 +1910,7 @@ async def collect_home_jobs(
                 elif browser_closed(exc):
                     status = "error"
                     payload = {"error": "browser_closed"}
+                    print("A janela do Chrome fechou no meio da busca.", flush=True)
                 else:
                     status = "error"
                     payload = {"error": message}
@@ -1548,7 +1931,8 @@ async def collect_home_jobs(
                         except (OSError, json.JSONDecodeError):
                             keep_old = False
                     azul = str(job.get("program") or raw_dir.name).lower() == "azul"
-                    if not keep_old and not azul:
+                    skip_mark = azul and status not in {"empty", "ok"}
+                    if not keep_old and not skip_mark:
                         file_path.parent.mkdir(parents=True, exist_ok=True)
                         file_path.write_text(
                             json.dumps(
@@ -1581,9 +1965,20 @@ async def collect_home_jobs(
                     session_mark.unlink(missing_ok=True)
                 break
             if index < len(jobs) - 1 and status in {"ok", "empty"}:
-                if not await rest_on_results_then_home(page, home, wait):
+                if program == "azul":
+                    gap = azul_gap_seconds()
+                    rested = await rest_on_results_then_home(page, home, gap, vary=False)
+                else:
+                    rested = await rest_on_results_then_home(page, home, wait)
+                if not rested:
                     break
+        browser = context.browser if fresh_session else None
         await context.close()
+        if browser is not None:
+            try:
+                await browser.close()
+            except Exception:
+                pass
     return results
 
 

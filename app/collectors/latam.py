@@ -35,7 +35,7 @@ from app.collectors.human import (
     rest_like_a_person,
     wander_mouse,
 )
-from app.airports import expand_city_airports, iata_from_card
+from app.airports import CITY_AIRPORTS, CITY_MEMBER_CODES, city_search_note, expand_city_airports, iata_from_card
 from app.miles_budget import plausible_miles
 from app.providers.base import Offer
 from app.providers.brazilian import _parse_latam, latam_url
@@ -726,8 +726,10 @@ READ_CARDS_JS = r"""() => {
     const footer = (card.querySelector('[data-testid^="footer-card-"]') || {}).innerText || '';
     const iataOf = (text) => {
       const codes = [...String(text || '').matchAll(/\b([A-Z]{3})\b/g)].map((item) => item[1]);
-      return codes.find((code) => code === 'GIG' || code === 'SDU')
-        || codes.find((code) => code !== 'BRL' && code !== 'RIO')
+      const CITY = new Set(['RIO', 'SAO']);
+      const REAL = new Set(['GIG', 'SDU', 'CGH', 'GRU', 'VCP']);
+      return codes.find((code) => REAL.has(code))
+        || codes.find((code) => code !== 'BRL' && !CITY.has(code))
         || '';
     };
     const operators = [...card.querySelectorAll('img[data-testid^="image-"]')]
@@ -1080,15 +1082,15 @@ def _merge_offer_dicts(old: list[dict[str, Any]], new: list[dict[str, Any]]) -> 
 
 def _resolve_card_iata(raw: str, text: str | None, fallback: str) -> str:
     token = (raw or "").strip().upper()
-    if token in {"GIG", "SDU"}:
+    if token in CITY_MEMBER_CODES:
         return token
     parsed = iata_from_card(text, token or fallback)
-    if parsed in {"GIG", "SDU"}:
+    if parsed in CITY_MEMBER_CODES:
         return parsed
-    if parsed and parsed != "RIO":
+    if parsed and parsed not in CITY_AIRPORTS:
         return parsed
     fallback_token = (fallback or "").strip().upper()
-    if fallback_token in {"GIG", "SDU"}:
+    if fallback_token in CITY_MEMBER_CODES:
         return fallback_token
     return parsed or token or fallback_token
 
@@ -1356,22 +1358,28 @@ async def _collect_job_offers(page, context, job: dict[str, Any], cards: dict[st
 
     print(
         f"{len(outbound_cards)} voos de ida {origin}-{dest} {day}. "
-        f"Busca RIO; gravo GIG ou SDU de cada card. Sem abrir itinerário.",
+        f"Gravo o aeroporto real de cada card. Sem abrir itinerário.",
         flush=True,
     )
     ida_booking = latam_url(origin, dest, day, True, return_date=None)
     volta_booking = latam_url(dest, origin, return_day, True, return_date=None) if return_day else url
-    gig = sdu = 0
+    gig = sdu = cgh = gru = vcp = 0
     for card in outbound_cards:
         out_orig, out_dest = _card_airports(card, origin, dest)
         if out_orig == "GIG":
             gig += 1
         elif out_orig == "SDU":
             sdu += 1
+        elif out_orig == "CGH":
+            cgh += 1
+        elif out_orig == "GRU":
+            gru += 1
+        elif out_orig == "VCP":
+            vcp += 1
         offers.append(_offer_leg(out_orig, out_dest, day, card, {}, ida_booking, "economy", "LIGHT", "ida"))
     print(
         f"Gravo idas LIGHT {origin}-{dest} {day} por cidade "
-        f"({gig} GIG, {sdu} SDU, paradas + duração).",
+        f"({gig} GIG, {sdu} SDU, {cgh} CGH, {gru} GRU, {vcp} VCP, paradas + duração).",
         flush=True,
     )
     if not return_day:
@@ -1772,9 +1780,12 @@ async def _fill_airport_field(page, field, code: str) -> bool:
         return False
     await _type_slowly(page, field, code)
     await _pause(page, 0.7, 1.4)
-    if code.upper() == "RIO":
+    token = code.upper()
+    if token in CITY_AIRPORTS:
         option = await _first_visible(
-            page.get_by_role("option").filter(has_text=re.compile(r"todos os aeroportos|\bRIO\b", re.I)),
+            page.get_by_role("option").filter(
+                has_text=re.compile(r"todos os aeroportos|\bRIO\b|\bSAO\b|s[aã]o paulo|rio de janeiro", re.I)
+            ),
             timeout=2500,
         )
     else:
@@ -1917,7 +1928,10 @@ async def _mark_miles_plus_cash(page) -> bool:
 async def _search_from_home(page, origin: str, dest: str, day: str, return_day: str | None = None) -> bool:
     try:
         if await _latam_login_gate_visible(page):
-            print("A LATAM pediu login. Entro com o .env antes de preencher a busca.", flush=True)
+            print(
+                "A LATAM pediu login. Não preencho senha. Entre você no Chrome; eu espero.",
+                flush=True,
+            )
             if not await login_with_env(page, "latam", LATAM_HOME, session_mark=SESSION_MARK):
                 return False
             await _safe_goto(page, LATAM_HOME)
@@ -2065,7 +2079,10 @@ async def open_latam_login() -> dict[str, Any]:
                 print("A janela do Chrome foi fechada antes de gravar a sessão.", flush=True)
                 return {"ok": False, "url": "", "error": "browser_closed"}
             raise
-        print("Abro a LATAM e entro com o login do .env, se ainda não estiver na conta.", flush=True)
+        print(
+            "Abro a LATAM com os cookies salvos. Se pedir login, entre você; não preencho senha.",
+            flush=True,
+        )
         deadline = asyncio.get_event_loop().time() + 12 * 60
         href = page.url
         ok = False
@@ -2227,12 +2244,12 @@ async def collect_latam_jobs(
             try:
                 captured.clear()
                 volta = f" / volta {return_day}" if return_day else ""
-                rio_note = " (RIO cobre GIG e SDU)" if origin == "RIO" or dest == "RIO" else ""
+                city_note = city_search_note(origin, dest)
                 if _url_matches_job(page.url or "", origin, dest, day, return_day):
-                    print(f"Já estou nos resultados {origin} → {dest} {day}{volta}. Leio a tela.", flush=True)
+                    print(f"Já estou nos resultados {origin} para {dest} {day}{volta}. Leio a tela.", flush=True)
                     filled = True
                 else:
-                    print(f"Home LATAM: {origin} → {dest} {day}{volta}{rio_note}", flush=True)
+                    print(f"Home LATAM: {origin} para {dest} {day}{volta}{city_note}", flush=True)
                     await _close_latam_dialogs(page)
                     await _safe_goto(page, LATAM_HOME)
                     await _dismiss_banners(page)
@@ -2287,7 +2304,7 @@ async def collect_latam_jobs(
                             SESSION_MARK.unlink(missing_ok=True)
                             payload["error"] = "login_required"
                         else:
-                            print("Login LATAM feito. Refaço o preenchimento desta busca.", flush=True)
+                            print("Sessão LATAM pronta. Refaço o preenchimento desta busca.", flush=True)
                             await _safe_goto(page, LATAM_HOME)
                             await _dismiss_banners(page)
                             filled = await _search_from_home(page, origin, dest, day, return_day=return_day)
@@ -2351,6 +2368,7 @@ async def collect_latam_jobs(
             except Exception as exc:
                 status = "error"
                 payload = {"error": str(exc)}
+                print(f"Falha nesta busca {origin}-{dest}: {exc}", flush=True)
             compact = [_compact_offer(offer) for offer in offers]
             if save_raw:
                 slim = dict(payload)

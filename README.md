@@ -4,10 +4,10 @@ Site privado para buscar passagens **em milhas**, com destinos nacionais e inter
 
 ## De onde vêm as milhas
 
-As três cias usam o mesmo coletor local: Chrome visível, perfil persistente com o **seu login**, preenche a home como pessoa e intercepta o JSON que o próprio site já pede.
+O coletor local abre o Chrome visível, preenche a home como pessoa e intercepta o JSON que o próprio site já pede.
 
-- **LATAM Pass:** `python3 -m app.collectors.latam login`
-- **TudoAzul:** `python3 -m app.collectors.azul login`
+- **LATAM Pass:** precisa de sessão. `python3 -m app.collectors.latam login` abre o Chrome para você entrar; a coleta só reusa os cookies. Não preenche senha.
+- **TudoAzul:** busca como visitante, sem login, para não arriscar a conta.
 - **GOL Smiles:** `python3 -m app.collectors.smiles login`
 
 Não há API paga, busca em dinheiro nem Seats.aero. GIG e SDU na mesma rota viram **uma busca RIO**.
@@ -15,7 +15,7 @@ Não há API paga, busca em dinheiro nem Seats.aero. GIG e SDU na mesma rota vir
 ## Como usar
 
 1. Abra [http://127.0.0.1:8765](http://127.0.0.1:8765), crie uma conta e entre. Sem login, a home mostra alguns destinos com preço e **sem a data**.
-2. Faça login uma vez em cada cia (comandos acima)
+2. Na LATAM, entre uma vez no Chrome (comando acima). A Azul não precisa.
 3. Os cards só aparecem com milhas reais
 4. Em ida e volta, o número é dos **dois trechos juntos**
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import random
+import time
 
 
 def _closed(exc: BaseException) -> bool:
@@ -187,14 +188,19 @@ def irregular_gap_seconds(base: float) -> float:
     return wait
 
 
+def azul_gap_seconds() -> float:
+    """Pausa curta entre datas na Azul, sorteada a cada trecho."""
+    return random.uniform(20.0, 60.0)
+
+
 def irregular_region_seconds() -> float:
     return random.uniform(140, 560)
 
 
 async def idle_on_page(page, seconds: float) -> None:
-    remaining = max(12.0, seconds)
+    remaining = max(0.0, seconds)
     while remaining > 0:
-        slice_s = min(remaining, random.uniform(7.0, 26.0))
+        slice_s = min(remaining, random.uniform(7.0, 26.0) if remaining > 7 else remaining)
         await page.wait_for_timeout(int(slice_s * 1000))
         remaining -= slice_s
         roll = random.random()
@@ -207,18 +213,52 @@ async def idle_on_page(page, seconds: float) -> None:
                 pass
 
 
-async def rest_like_a_person(page, home: str, seconds: float, goto) -> bool:
-    wait = irregular_gap_seconds(seconds)
+async def peek_random_flight(page, card_selector: str = '[data-testid^="wrapper-card-header-"]') -> None:
+    try:
+        cards = page.locator(card_selector)
+        count = await cards.count()
+    except Exception:
+        count = 0
+    if count < 1:
+        return
+    pick = random.randrange(count)
+    print(f"Abro um voo aleatório ({pick + 1} de {count}) e depois volto.", flush=True)
+    await human_click(cards.nth(pick), page=page, timeout=2500)
+    await human_pause(page, 1.4, 4.2, wander=True)
+    try:
+        await page.keyboard.press("Escape")
+    except Exception:
+        pass
+    await human_pause(page, 0.6, 1.8, wander=False)
+    if random.random() < 0.35:
+        try:
+            await page.keyboard.press("Escape")
+        except Exception:
+            pass
+
+
+async def rest_like_a_person(page, home: str, seconds: float, goto, vary: bool = True) -> bool:
+    wait = irregular_gap_seconds(seconds) if vary else float(seconds)
+    label = f"{wait:.0f}s" if wait < 90 else f"{wait / 60:.1f} min"
     print(
-        f"Fico {wait / 60:.1f} min na tela de resultados, olhando os voos, antes da próxima busca.",
+        f"Fico {label} na tela de resultados, olhando os voos, antes da próxima busca.",
         flush=True,
     )
     try:
+        started = time.monotonic()
         await browse_results(page)
-        remaining = max(8.0, wait - 8.0)
-        await idle_on_page(page, remaining)
+        if vary and random.random() < 0.58:
+            await peek_random_flight(page)
+        elif not vary and random.random() < 0.45:
+            await wander_mouse(page)
+        remaining = wait - (time.monotonic() - started)
+        if remaining > 1:
+            await idle_on_page(page, remaining)
         await goto(page, home)
-        await human_pause(page, 2.2, 7.8)
+        if vary:
+            await human_pause(page, 2.2, 7.8)
+        else:
+            await human_pause(page, 0.4, 1.2)
         await wander_mouse(page)
         return True
     except Exception as exc:
