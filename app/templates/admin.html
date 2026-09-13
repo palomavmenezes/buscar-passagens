@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}Aprovar contas · Viannas pelo Mundo{% endblock %}
+{% block body %}
+<section class="hero">
+  <p class="kicker">Só admin</p>
+  <h1>Aprovar contas</h1>
+  <p class="lede">Quem se cadastra no site entra como pendente. Só vê datas e valores depois que você aprova. Dá para cadastrar outro admin aqui.</p>
+</section>
+
+{% if aviso %}
+<p class="notice">{{ aviso }}</p>
+{% endif %}
+{% if erro %}
+<p class="error">{{ erro }}</p>
+{% endif %}
+
+<section class="admin-panel">
+  <header class="section-head">
+    <div>
+      <p class="kicker">Fila</p>
+      <h2>Aguardando aprovação <span class="count-pill">{{ pending_users|length }}</span></h2>
+    </div>
+  </header>
+  {% if pending_users %}
+  <div class="table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>E-mail</th>
+          <th>Cadastro</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for person in pending_users %}
+        <tr>
+          <td>{{ person.name }}</td>
+          <td>{{ person.email }}</td>
+          <td>{{ person.created_at|brdate }}</td>
+          <td class="row-actions">
+            <form method="post" action="/admin/usuarios/{{ person.id }}/aprovar"><button type="submit">Aprovar</button></form>
+            <form method="post" action="/admin/usuarios/{{ person.id }}/recusar"><button class="ghost danger" type="submit">Recusar</button></form>
+            <form method="post" action="/admin/usuarios/{{ person.id }}/admin"><button class="ghost" type="submit">Tornar admin</button></form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="hint">Ninguém na fila agora.</p>
+  {% endif %}
+</section>
+
+<section class="admin-panel">
+  <header class="section-head">
+    <div>
+      <p class="kicker">Liberados</p>
+      <h2>Aprovados <span class="count-pill">{{ approved_users|length }}</span></h2>
+    </div>
+  </header>
+  {% if approved_users %}
+  <div class="table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>E-mail</th>
+          <th>Desde</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for person in approved_users %}
+        <tr>
+          <td>{{ person.name }}</td>
+          <td>{{ person.email }}</td>
+          <td>{{ (person.approved_at or person.created_at)|brdate }}</td>
+          <td class="row-actions">
+            <form method="post" action="/admin/usuarios/{{ person.id }}/admin"><button class="ghost" type="submit">Tornar admin</button></form>
+            <form method="post" action="/admin/usuarios/{{ person.id }}/recusar"><button class="ghost danger" type="submit">Recusar</button></form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="hint">Ainda não há contas aprovadas além dos admins.</p>
+  {% endif %}
+</section>
+
+<section class="admin-panel">
+  <header class="section-head">
+    <div>
+      <p class="kicker">Quem acessa este painel</p>
+      <h2>Admins <span class="count-pill">{{ admin_users|length }}</span></h2>
+    </div>
+  </header>
+  <div class="table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>E-mail</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for person in admin_users %}
+        <tr>
+          <td>{{ person.name }}{% if current_user and person.id == current_user.id %} <span class="pill">você</span>{% endif %}</td>
+          <td>{{ person.email }}</td>
+          <td class="row-actions">
+            {% if admin_count > 1 and (not current_user or person.id != current_user.id) %}
+            <form method="post" action="/admin/usuarios/{{ person.id }}/tirar-admin"><button class="ghost" type="submit">Tirar admin</button></form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <form method="post" action="/admin/usuarios" class="admin-create">
+    <p class="kicker">Cadastrar outro admin</p>
+    <h3>Quem você cadastrar entra já aprovado e vê este painel.</h3>
+    <div class="admin-create-grid">
+      <label>
+        Nome
+        <input name="name" value="{{ form_name|default('') }}" required autocomplete="name">
+      </label>
+      <label>
+        E-mail
+        <input type="email" name="email" value="{{ form_email|default('') }}" required autocomplete="email">
+      </label>
+      <label>
+        Senha
+        <input type="password" name="password" required minlength="8" autocomplete="new-password">
+      </label>
+    </div>
+    <button type="submit">Cadastrar admin</button>
+  </form>
+</section>
+
+{% if rejected_users %}
+<section class="admin-panel">
+  <header class="section-head">
+    <div>
+      <p class="kicker">Fora</p>
+      <h2>Recusados <span class="count-pill">{{ rejected_users|length }}</span></h2>
+    </div>
+  </header>
+  <div class="table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>E-mail</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for person in rejected_users %}
+        <tr>
+          <td>{{ person.name }}</td>
+          <td>{{ person.email }}</td>
+          <td class="row-actions">
+            <form method="post" action="/admin/usuarios/{{ person.id }}/aprovar"><button type="submit">Aprovar mesmo assim</button></form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

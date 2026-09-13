@@ -1,62 +1,66 @@
 <section class="panel search-box">
-  <h2>Filtrar milhas da coleta</h2>
-  <form method="post" action="/buscas" class="search-form" id="search-form">
-    <input type="hidden" name="kind" value="miles">
+  <h2>Buscar nas milhas já coletadas</h2>
+  <form method="get" action="/buscar" class="search-form" id="search-form">
     <label>
-      Origens
-      <input name="origins" value="{{ origins_value|default(active_origin) }}" required>
+      Origem
+      <select name="origem">
+        {% for code in origins %}
+        <option value="{{ code }}" {% if (filters.origin if filters is defined and filters.origin else active_origin) == code %}selected{% endif %}>
+          {{ code }} · {{ origin_labels.get(code, code) }}
+        </option>
+        {% endfor %}
+      </select>
     </label>
     <label>
-      Destinos
-      <input name="destinations" placeholder="SSA, LIS, MIA, FOR" value="{{ destinations_value|default(suggested_destinations) }}">
+      Destino
+      <input name="destino" list="destinos" placeholder="SSA, Lisboa, VIX…" value="{{ filters.destination if filters is defined else '' }}">
+      <datalist id="destinos">
+        {% for code, city in airport_options %}
+        <option value="{{ code }}">{{ city }}</option>
+        {% endfor %}
+      </datalist>
     </label>
     <label>
       Tipo
-      <select name="trip_type" id="trip_type">
-        <option value="one_way">Só ida</option>
-        <option value="round_trip">Ida e volta</option>
+      <select name="tipo" id="trip_type">
+        <option value="one_way" {% if not filters is defined or filters.trip_type != 'round_trip' %}selected{% endif %}>Só ida</option>
+        <option value="round_trip" {% if filters is defined and filters.trip_type == 'round_trip' %}selected{% endif %}>Ida e volta</option>
       </select>
     </label>
     <label>
       Cabine
       <select name="cabin">
-        <option value="economy">Econômica</option>
-        <option value="premium">Premium</option>
-        <option value="business">Executiva</option>
-        <option value="all">Todas</option>
+        <option value="all" {% if not filters is defined or filters.cabin == 'all' %}selected{% endif %}>Todas</option>
+        <option value="economy" {% if filters is defined and filters.cabin == 'economy' %}selected{% endif %}>Econômica</option>
+        <option value="premium" {% if filters is defined and filters.cabin == 'premium' %}selected{% endif %}>Premium</option>
+        <option value="business" {% if filters is defined and filters.cabin == 'business' %}selected{% endif %}>Executiva</option>
       </select>
     </label>
-    <fieldset>
-      <legend>Datas</legend>
-      <label class="radio"><input type="radio" name="date_mode" value="flex" checked> Até 180 dias</label>
-      <label class="radio"><input type="radio" name="date_mode" value="year"> Até 1 ano</label>
-      <label class="radio"><input type="radio" name="date_mode" value="month"> Um mês</label>
-      <label class="radio"><input type="radio" name="date_mode" value="specific"> Datas específicas</label>
-    </fieldset>
     <label>
-      Data de ida / início
-      <input type="text" name="date_start" placeholder="AAAA-MM-DD ou AAAA-MM">
+      Data de ida
+      <input type="date" name="ida" value="{{ filters.date_from if filters is defined else '' }}">
+    </label>
+    <label id="return-date-wrap">
+      Data de volta
+      <input type="date" name="volta" value="{{ filters.date_to if filters is defined else '' }}">
     </label>
     <label>
-      Data de volta / fim
-      <input type="text" name="date_end" placeholder="AAAA-MM-DD">
+      Programa
+      <select name="cia">
+        <option value="">Todas as cias</option>
+        <option value="latam" {% if filters is defined and filters.program == 'latam' %}selected{% endif %}>LATAM Pass</option>
+        <option value="azul" {% if filters is defined and filters.program == 'azul' %}selected{% endif %}>TudoAzul</option>
+        <option value="smiles" {% if filters is defined and filters.program == 'smiles' %}selected{% endif %}>Smiles (GOL)</option>
+      </select>
     </label>
-    <label id="nights-wrap" class="hidden">
-      Noites no destino (quando não informar a volta)
-      <input type="number" name="stay_nights" value="7" min="1" max="30">
+    <label>
+      Companhia (texto)
+      <input name="companhia" placeholder="LATAM, Azul…" value="{{ filters.airline if filters is defined else '' }}">
     </label>
-    <div class="checks">
-      <label class="check"><input type="checkbox" name="smiles" checked> Smiles (GOL)</label>
-      <label class="check"><input type="checkbox" name="azul" checked> TudoAzul</label>
-      <label class="check"><input type="checkbox" name="latam" checked> LATAM Pass</label>
-    </div>
-    <button type="submit">Filtrar coleta salva</button>
+    <button type="submit">Mostrar menores valores</button>
   </form>
   <p class="hint">
-    Em <strong>ida e volta</strong>, as milhas são dos <strong>dois trechos juntos</strong>.
-    Só ida mostra apenas um trecho.
-  </p>
-  <p class="hint">
-    Os valores vêm da última coleta LATAM Pass, TudoAzul e GOL Smiles no site de cada cia. Filtrar não faz busca nova.
+    A busca só filtra o que já foi coletado. Só ida mostra o menor trecho saindo da origem.
+    Ida e volta soma o menor voo de ida com o menor voo de volta do mesmo destino, para a origem escolhida.
   </p>
 </section>

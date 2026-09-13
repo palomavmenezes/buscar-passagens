@@ -1,0 +1,36 @@
+{% if cards.national or cards.international %}
+<div class="split">
+  {% if cards.national %}
+  <section>
+    <div class="section-head">
+      <div>
+        <p class="kicker">Menores valores</p>
+        <h2>Nacionais {% if page_mode|default('ida') == 'round' %}<span class="count-pill">{{ cards.national|length }} destinos</span>{% endif %}</h2>
+      </div>
+    </div>
+    {% if page_mode|default('ida') == 'round' %}
+      {% with items=cards.national %}{% include "_pairs.html" %}{% endwith %}
+    {% else %}
+      {% with items=cards.national %}{% include "_gallery.html" %}{% endwith %}
+    {% endif %}
+  </section>
+  {% endif %}
+  {% if cards.international %}
+  <section>
+    <div class="section-head">
+      <div>
+        <p class="kicker">Menores valores</p>
+        <h2>Internacionais {% if page_mode|default('ida') == 'round' %}<span class="count-pill">{{ cards.international|length }} destinos</span>{% endif %}</h2>
+      </div>
+    </div>
+    {% if page_mode|default('ida') == 'round' %}
+      {% with items=cards.international %}{% include "_pairs.html" %}{% endwith %}
+    {% else %}
+      {% with items=cards.international %}{% include "_gallery.html" %}{% endwith %}
+    {% endif %}
+  </section>
+  {% endif %}
+</div>
+{% else %}
+<p class="hint">Ainda não há destinos com valor para {{ active_origin }}. Quando a coleta gravar milhas, os cards aparecem aqui.</p>
+{% endif %}
