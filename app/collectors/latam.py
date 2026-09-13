@@ -9,7 +9,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from app.config import DATA_DIR, LATAM_HEADLESS, LATAM_PAUSE_SECONDS, LATAM_PROFILE_DIR
+from app.config import DATA_DIR, LATAM_HEADLESS, LATAM_PAUSE_SECONDS, LATAM_PROFILE_DIR, harvest_route_path
 from app.airports import expand_city_airports
 from app.providers.base import Offer
 from app.providers.brazilian import _parse_latam, latam_url
@@ -1091,9 +1091,7 @@ async def collect_latam_jobs(
                 slim = dict(payload)
                 slim.pop("bff", None)
                 slim.pop("dom_text", None)
-                file_path = raw_dir / (
-                    f"{kind}-{origin}-{dest}-{day}-{return_day}.json" if return_day else f"{kind}-{origin}-{dest}-{day}.json"
-                )
+                file_path = harvest_route_path(raw_dir, origin, dest, day)
                 keep_old = False
                 if not compact and file_path.exists():
                     try:
@@ -1102,6 +1100,7 @@ async def collect_latam_jobs(
                     except (OSError, json.JSONDecodeError):
                         keep_old = False
                 if not keep_old:
+                    file_path.parent.mkdir(parents=True, exist_ok=True)
                     file_path.write_text(
                         json.dumps(
                             {"job": job, "status": status, "url": url, "offers": compact, "payload": slim},

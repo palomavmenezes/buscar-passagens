@@ -20,7 +20,7 @@
       Azul{% if harvest.azul_ready %}: sessão salva{% else %}: precisa de login{% endif %} ·
       GOL/Smiles{% if harvest.smiles_ready %}: sessão salva{% else %}: precisa de login{% endif %}.
       {% if harvest.last %}
-        Última coleta {{ harvest.last.folder }} · {{ harvest.last.offers or 0 }} ofertas.
+        Última coleta {{ harvest.last.label }} · {{ harvest.last.offers or 0 }} ofertas.
       {% else %}
         Ainda não houve coleta.
       {% endif %}

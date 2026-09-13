@@ -10,8 +10,7 @@ from app.config import DATA_DIR
 from app.dates import friday_monday_weekends, month_sample_dates, parse_date
 from app.airports import CITY_AIRPORTS, CITY_CODE_PROGRAMS
 
-CATALOG_PATH = DATA_DIR / "catalog" / "routes.json"
-SNAPSHOT_DIR = DATA_DIR / "catalog" / "snapshots"
+CATALOG_PATH = DATA_DIR / "routes.json"
 
 
 def load_catalog(path: Path | None = None) -> dict[str, Any]:
