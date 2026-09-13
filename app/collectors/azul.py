@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import time
 from pathlib import Path
 from typing import Any
 
@@ -10,10 +11,9 @@ from app.collectors.browser import (
     click_load_more_flights,
     collect_home_jobs,
     first_visible,
-    open_login,
     pause,
 )
-from app.config import AZUL_PROFILE_DIR
+from app.config import AZUL_GUEST_PROFILE_DIR
 from app.miles_budget import (
     AZUL_FARE_DIAMANTE,
     AZUL_FARE_PUBLICA,
@@ -24,7 +24,6 @@ from app.miles_budget import (
 from app.providers.base import Offer
 from app.providers.brazilian import _parse_azul, azul_url
 
-SESSION_MARK = AZUL_PROFILE_DIR / ".logged_in"
 AZUL_HOME = "https://www.voeazul.com.br/br/pt/home"
 BFF_HINTS = (
     "availability",
@@ -43,22 +42,13 @@ BLOCKED = (
     "access denied",
     "demorando mais",
 )
-LOGGED = (
-    "saldo de pontos",
-    "você está no nível",
-    "consultar extrato",
-    "crédito azul",
-    "sair da conta",
-    "encerrar sessão",
-)
-
 READ_AZUL_CARDS_JS = r"""(arg) => {
   const originSet = new Set(arg.origins || []);
   const destSet = new Set(arg.dests || []);
-  const ptsRe = /(\d{1,3}\.\d{3}\.\d{3}|\d{2,3}\.\d{3}|\d{5,7})\s*pontos/i;
+  const ptsRe = /(\d{1,3}(?:\.\d{3})+|\d{4,7})\s*pontos/i;
   const toPts = (raw) => {
     const n = parseInt(String(raw).replace(/\./g, ''), 10);
-    return (n >= 12000 && n <= 9000000) ? n : null;
+    return (n >= 5000 && n <= 9000000) ? n : null;
   };
   const isStrike = (el) => {
     let node = el;
@@ -74,12 +64,12 @@ READ_AZUL_CARDS_JS = r"""(arg) => {
   const mixed = (text) => /pontos\s*\+|ou\s+\d[\d.]*\s*pontos\s*\+/i.test(text || '');
   const iataOf = (text, prefer) => {
     const codes = [...String(text || '').matchAll(/\b([A-Z]{3})\b/g)].map((item) => item[1])
-      .filter((code) => !['BRL', 'PTS', 'ADT', 'RIO'].includes(code));
+      .filter((code) => !['BRL', 'PTS', 'ADT', 'RIO', 'SAO'].includes(code));
     const wanted = new Set(prefer || []);
     return codes.find((code) => wanted.has(code)) || codes[0] || '';
   };
   const buttons = [...document.querySelectorAll('button, a, [role=button]')].filter((el) =>
-    /ver tarifas/i.test(el.innerText || el.getAttribute('aria-label') || '')
+    /ver tarifas|selecionar tarifa|escolher voo|selecionar voo/i.test(el.innerText || el.getAttribute('aria-label') || '')
   );
   const cards = [];
   const seen = new Set();
@@ -88,7 +78,7 @@ READ_AZUL_CARDS_JS = r"""(arg) => {
     for (let i = 0; i < 14 && root.parentElement; i++) {
       root = root.parentElement;
       const t = (root.innerText || '').replace(/\s+/g, ' ');
-      if (/ver tarifas/i.test(t) && ptsRe.test(t) && t.length > 50 && t.length < 2800) break;
+      if (/ver tarifas|selecionar tarifa|escolher voo|selecionar voo|pontos/i.test(t) && ptsRe.test(t) && t.length > 50 && t.length < 2800) break;
     }
     const text = (root.innerText || '').replace(/\s+/g, ' ').trim();
     const key = text.slice(0, 140);
@@ -109,7 +99,7 @@ READ_AZUL_CARDS_JS = r"""(arg) => {
     }
     if (normal == null || diamond == null) {
       const listed = [];
-      for (const match of text.matchAll(/(\d{1,3}\.\d{3}\.\d{3}|\d{2,3}\.\d{3}|\d{5,7})\s*pontos/gi)) {
+      for (const match of text.matchAll(/(\d{1,3}(?:\.\d{3})+|\d{4,7})\s*pontos/gi)) {
         const idx = match.index || 0;
         const around = text.slice(Math.max(0, idx - 8), idx + match[0].length + 12);
         if (mixed(around) || /\+\s*R\$/i.test(around)) continue;
@@ -163,7 +153,7 @@ READ_AZUL_CARDS_JS = r"""(arg) => {
 
 
 def azul_session_ready() -> bool:
-    return SESSION_MARK.exists() and AZUL_PROFILE_DIR.exists()
+    return True
 
 
 def _keep_azul_miles(offers: list[Offer]) -> list[Offer]:
@@ -301,6 +291,16 @@ async def read_azul_page(page, origin: str, dest: str, day: str, return_day: str
         },
     )
     cards = (data or {}).get("cards") or []
+    if not cards:
+        href = page.url or ""
+        blob = ""
+        try:
+            blob = (await page.inner_text("body") or "").replace("\n", " ")
+        except Exception:
+            blob = ""
+        print(f"Azul sem cards em {href[:180]}", flush=True)
+        if blob:
+            print(f"Texto da tela: {blob[:420]}", flush=True)
     offers = offers_from_azul_cards(cards, origin, dest, day, return_day)
     public = sum(1 for offer in offers if offer.fare == AZUL_FARE_PUBLICA)
     diamonds = sum(1 for offer in offers if offer.fare == AZUL_FARE_DIAMANTE)
@@ -315,16 +315,30 @@ async def read_azul_page(page, origin: str, dest: str, day: str, return_day: str
     return offers
 
 
+def _new_azul_guest_profile() -> Path:
+    folder = AZUL_GUEST_PROFILE_DIR / time.strftime("%Y%m%d-%H%M%S")
+    folder.mkdir(parents=True, exist_ok=True)
+    print("Abro um Chrome da Azul do zero, pasta nova, sem cookies nem login.", flush=True)
+    return folder
+
+
 async def collect_azul_jobs(jobs: list[dict[str, Any]], raw_dir: Path, **kwargs) -> list[dict[str, Any]]:
     kwargs.pop("redemption", None)
+    kwargs.pop("session_mark", None)
+    kwargs.pop("halt_on", None)
+    kwargs.pop("fresh_session", None)
     if "pause_seconds" not in kwargs and "pause" in kwargs:
         kwargs["pause_seconds"] = kwargs.pop("pause")
     else:
         kwargs.pop("pause", None)
+    kwargs["session_mark"] = None
+    kwargs["halt_on"] = {"denied"}
+    kwargs.setdefault("wait_loops", 45)
+    kwargs.setdefault("startup_wait_seconds", 30)
     return await collect_home_jobs(
         jobs,
         raw_dir,
-        profile_dir=AZUL_PROFILE_DIR,
+        profile_dir=_new_azul_guest_profile(),
         home=AZUL_HOME,
         label="Azul",
         program="azul",
@@ -343,13 +357,17 @@ async def collect_azul_jobs(jobs: list[dict[str, Any]], raw_dir: Path, **kwargs)
         booking_url=lambda origin, dest, day, back: azul_url(origin, dest, day, back),
         miles_after_dates=True,
         read_page=read_azul_page,
-        session_mark=SESSION_MARK,
         **kwargs,
     )
 
 
 async def open_azul_login() -> dict[str, Any]:
-    return await open_login(AZUL_PROFILE_DIR, AZUL_HOME, "Azul / TudoAzul", LOGGED, SESSION_MARK)
+    print(
+        "A Azul não precisa de login para tarifas de milhas. "
+        "A coleta usa um Chrome visitante, sem a sua conta.",
+        flush=True,
+    )
+    return {"ok": True, "url": AZUL_HOME, "guest": True}
 
 
 if __name__ == "__main__":
@@ -359,5 +377,4 @@ if __name__ == "__main__":
     if command != "login":
         raise SystemExit("Use: python3 -m app.collectors.azul login")
     result = asyncio.run(open_azul_login())
-    print("Sessão Azul salva." if result.get("ok") else "Ainda precisa fazer login.", flush=True)
     print(result.get("url") or "", flush=True)

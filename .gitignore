@@ -10,6 +10,8 @@ data/harvest/
 data/coleta-estado/
 data/latam-chrome-profile/
 data/azul-chrome-profile/
+data/azul-chrome-guest/
+data/azul-chrome-guest*/
 data/smiles-chrome-profile/
 data/playwright-browsers/
 .DS_Store
