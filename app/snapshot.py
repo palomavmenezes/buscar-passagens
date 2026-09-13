@@ -8,17 +8,17 @@ from typing import Any
 from app.airports import city_name, expand_city_airports
 from app.catalog import catalog_airports, collapse_rio_jobs, load_catalog, requested_jobs, snapshot_queue
 from app.collectors.azul import azul_session_ready, collect_azul_jobs
-from app.collectors.latam import collect_latam_jobs, latam_session_ready
+from app.collectors.latam import collect_latam_jobs, latam_session_ready, plausible_miles
 from app.collectors.smiles import collect_smiles_jobs, smiles_session_ready
 from app.config import HARVEST_DIR, LATAM_MAX_PER_RUN, harvest_route_path
-from app.db import create_search, insert_results, now_iso, query_results, replace_miles_route, update_search
+from app.db import create_search, init_db, insert_results, now_iso, query_results, replace_miles_route, update_search
 from app.providers.base import Offer
 
 
 def pending_jobs(jobs: list[dict[str, Any]], folder: Path) -> list[dict[str, Any]]:
     done: set[tuple[str, str, str, str]] = set()
     for job in jobs:
-        path = harvest_route_path(folder, job["origin"], job["destination"], job["day"])
+        path = harvest_route_path(folder, job["origin"], job["destination"], job["day"], job=job)
         if not path.exists():
             continue
         try:
@@ -64,6 +64,14 @@ def offer_record(offer: Offer, extra: dict[str, Any] | None = None) -> dict[str,
         "booking_url": offer.booking_url,
         "departure_time": offer.departure_time,
         "arrival_time": offer.arrival_time,
+        "return_time": offer.return_time,
+        "return_arrival": offer.return_arrival,
+        "duration": offer.duration,
+        "operators": offer.operators,
+        "layover": offer.layover,
+        "taxes": offer.taxes,
+        "fare": offer.fare,
+        "trip_kind": offer.trip_kind,
     }
     if extra:
         record.update(extra)
@@ -129,6 +137,14 @@ def records_from_db(origin: str | None = None) -> list[dict[str, Any]]:
                 "kind": info.get("kind"),
                 "departure_time": row.get("departure_time"),
                 "arrival_time": row.get("arrival_time"),
+                "return_time": row.get("return_time"),
+                "return_arrival": row.get("return_arrival"),
+                "duration": row.get("duration"),
+                "operators": row.get("operators"),
+                "layover": row.get("layover"),
+                "taxes": row.get("taxes"),
+                "fare": row.get("fare"),
+                "trip_kind": row.get("trip_kind"),
             }
         )
     return records
@@ -149,6 +165,7 @@ async def run_snapshot(
     max_per_run: int | None = None,
     keep_order: bool = False,
 ) -> dict[str, Any]:
+    init_db()
     catalog = load_catalog()
     planned = jobs if jobs is not None else snapshot_queue(catalog)
     if planned:
@@ -195,7 +212,7 @@ async def run_snapshot(
             )
             for label, batch in batches:
                 batch = [{**job, "program": program} for job in batch]
-                print(f"Leva {title} {label}: {len(batch)} trechos, pausa na home entre cada um.", flush=True)
+                print(f"Leva {title} {label}: {len(batch)} trechos; 2-3 min na tela de resultados entre cada um.", flush=True)
                 update_search(search_id, progress=f"{title} milhas {label} ({len(batch)} trechos)")
 
                 def ingest(item: dict[str, Any], current_program: str = program, current_title: str = title) -> None:
@@ -203,19 +220,55 @@ async def run_snapshot(
                     offers = item.get("offers") or []
                     if item.get("status") == "login":
                         notes.append(f"{current_title} pediu login de novo")
+                    status = item.get("status")
+                    offers = [
+                        offer
+                        for offer in (item.get("offers") or [])
+                        if plausible_miles(
+                            offer.miles,
+                            offer.origin,
+                            offer.destination,
+                            offer.cabin,
+                            program=job.get("program") or offer.miles_program or "latam",
+                            fare=offer.fare,
+                            trip_kind=offer.trip_kind,
+                        )
+                    ]
+                    complete = bool(offers) and status in {200, "ok"}
+                    if job.get("return_day") and complete:
+                        complete = any((offer.trip_kind or "") in {"volta", "round_trip"} for offer in offers)
+                    if not complete:
+                        print(
+                            f"Não atualizo o site {job['origin']}-{job['destination']}; mantenho a coleta anterior.",
+                            flush=True,
+                        )
+                        return
                     if offers:
                         origin_codes = expand_city_airports(job["origin"])
                         dests = expand_city_airports(job["destination"])
                         for origin_code in origin_codes:
                             for dest_code in dests:
                                 if origin_code != dest_code:
-                                    replace_miles_route(origin_code, dest_code, job["day"], current_program)
+                                    for cabin in {offer.cabin for offer in offers}:
+                                        replace_miles_route(
+                                            origin_code,
+                                            dest_code,
+                                            job["day"],
+                                            current_program,
+                                            cabin=cabin,
+                                            return_date=job.get("return_day") or job.get("return_date"),
+                                        )
                         insert_results([offer.as_row(search_id, found_at) for offer in offers])
                         for offer in offers:
                             records.append(offer_record(offer, {"region": job.get("region_label"), "kind": job.get("kind")}))
-                        cheapest = min(offers, key=lambda item: item.miles or 10**9)
                         print(
-                            f"Salvo {current_title} {job['origin']}-{job['destination']} {job['day']}: {cheapest.miles} milhas ({cheapest.airline})",
+                            f"Salvo {current_title} {job['origin']}-{job['destination']} {job['day']}: "
+                            + ", ".join(
+                                f"{kind} {sum(1 for item in offers if (item.trip_kind or 'round_trip') == kind)}"
+                                for kind in ("ida", "volta", "round_trip")
+                                if any((item.trip_kind or "round_trip") == kind for item in offers)
+                            )
+                            or f"{len(offers)} ofertas",
                             flush=True,
                         )
 

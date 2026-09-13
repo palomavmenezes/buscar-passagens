@@ -268,12 +268,54 @@ async def run_harvest(slot: str) -> dict[str, Any]:
 
         def persist(job: dict[str, Any], offers: list, status: Any, file_name: str) -> None:
             nonlocal saved, offers_count
-            rows = [offer.as_row(search_id, found_at) for offer in offers]
+            from app.collectors.latam import plausible_miles
+
+            valid = [
+                offer
+                for offer in offers
+                if plausible_miles(
+                    offer.miles,
+                    offer.origin,
+                    offer.destination,
+                    offer.cabin,
+                    program=job.get("program") or offer.miles_program or "latam",
+                    fare=offer.fare,
+                    trip_kind=offer.trip_kind,
+                )
+            ]
+            complete = bool(valid) and status in {200, "ok", None}
+            if job.get("return_day") and complete:
+                complete = any((offer.trip_kind or "") in {"volta", "round_trip"} for offer in valid)
+            if not complete:
+                print(
+                    f"Não atualizo o site {job['origin']}-{job['destination']}; mantenho a coleta anterior.",
+                    flush=True,
+                )
+                saved += 1
+                log.append(
+                    {
+                        "origin": job["origin"],
+                        "destination": job["destination"],
+                        "program": job["program"],
+                        "day": job["day"],
+                        "status": status,
+                        "offers": 0,
+                        "file": file_name,
+                    }
+                )
+                return
+            rows = [offer.as_row(search_id, found_at) for offer in valid]
             if rows:
                 for origin_code in expand_city_airports(job["origin"]):
                     for dest_code in expand_city_airports(job["destination"]):
                         if origin_code != dest_code:
-                            replace_miles_route(origin_code, dest_code, job["day"], job["program"])
+                            replace_miles_route(
+                                origin_code,
+                                dest_code,
+                                job["day"],
+                                job["program"],
+                                return_date=job.get("return_day") or job.get("return_date"),
+                            )
                 insert_results(rows)
                 offers_count += len(rows)
             saved += 1

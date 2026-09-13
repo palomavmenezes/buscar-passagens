@@ -14,7 +14,7 @@ Não há API paga, busca em dinheiro nem Seats.aero. GIG e SDU na mesma rota vir
 
 ## Como usar
 
-1. Abra [http://127.0.0.1:8765](http://127.0.0.1:8765) (senha local: `viannas-2026`)
+1. Abra [http://127.0.0.1:8765](http://127.0.0.1:8765), crie uma conta e entre. Sem login, a home mostra alguns destinos com preço e **sem a data**.
 2. Faça login uma vez em cada cia (comandos acima)
 3. Os cards só aparecem com milhas reais
 4. Em ida e volta, o número é dos **dois trechos juntos**

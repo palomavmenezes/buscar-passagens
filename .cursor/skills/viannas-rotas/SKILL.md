@@ -19,7 +19,7 @@ Se faltar destino, data de ida ou data de volta — e nenhum padrão abaixo comp
 
 Origem padrão: GIG, se ela não disser outra.
 
-Se ela quiser **GIG e SDU na mesma rota**, não faça duas buscas. Use **RIO** na LATAM, na Azul e no GOL/Smiles (`--origem RIO` ou `--origem GIG,SDU`, que vira uma busca RIO). Os voos voltam com origem GIG ou SDU.
+Se ela quiser **GIG e SDU na mesma rota**, não faça duas buscas. Use **RIO** na LATAM, na Azul e no GOL/Smiles (`--origem RIO` ou `--origem GIG,SDU`, que vira uma busca RIO). Na coleta, grave o aeroporto real de cada voo (GIG ou SDU).
 
 Não dispare o Chrome só com “quero passagens” ou “busca o catálogo”.
 
@@ -69,17 +69,32 @@ Varredura do catálogo: `python3 -m app.snapshot catalog` — evitar.
 
 ## Catálogo
 
-- Internacional: Itália, Espanha, Portugal, Alemanha, França, EUA, Chile, Reino Unido, Argentina, Japão, China
-- Nacional: `nordeste` (REC AJU FOR SSA BPS SLZ JPA NAT), `norte`, `centro-oeste`, `sudeste`, `sul`
+Nacional e internacional **não são iguais** na LATAM e na Azul. Fonte: `data/routes.json` (`programs` em cada aeroporto). Origem RIO não busca GIG/SDU.
+
+**LATAM nacional:** Nordeste REC SSA FOR NAT MCZ AJU JPA SLZ BPS · Norte BEL MAO · Centro-Oeste BSB · Sudeste VCP CNF CGH GRU VIX · Sul POA CWB FLN NVT IGU
+
+**Azul nacional:** Nordeste REC SSA FOR NAT MCZ AJU JPA THE SLZ BPS · Norte MAO BEL PVH RBR BVB MCP STM · Centro-Oeste BSB CGB GYN CGR · Sudeste VCP CNF CGH GRU VIX · Sul POA CWB FLN NVT IGU
+
+**Azul internacional:** EUA FLL MCO · Europa LIS OPO MAD · Caribe/América do Sul CUR MVD PDP ASU BRC MDZ
+
+**LATAM internacional:** Europa, América do Norte, América do Sul, América Central, Ásia, Oriente Médio, África (lista completa no `routes.json`)
 
 ## Ritmo ético
 
 - No máximo 6 trechos por rodada
-- Home da cia + ~60s depois de cada sucesso
+- 2–3 min na tela de resultados depois de cada sucesso; só então volta à home e preenche a próxima busca
+- Ir **devagar**: um clique de ida por busca, esperar a volta carregar, não disparar outra pesquisa
 - Parar no primeiro 403 daquela cia (as outras seguem)
 - Sem stealth, proxy, fingerprint falso, replay de BFF ou bypass de captcha
 
 O site mostra data e horário de cada voo para ela escolher na hora de comprar. Gravar todos os voos da busca, não só o mais barato.
+
+Ida + volta, nacional e internacional — **uma busca, duas pastas**:
+
+- Na tela de ida, ler **todos** os voos LIGHT de uma vez (milhas, paradas, duração). Salvar em `data/harvest/latam/DATA-IDA/ORIGEM-DESTINO.json`
+- Clicar **uma** ida LIGHT. Na volta já aparecem LIGHT **e** executiva — ler as duas. Salvar em `data/harvest/latam/DATA-VOLTA/DESTINO-ORIGEM.json`
+- Não voltar à ida nem refazer a busca
+- Por enquanto só quantidade de paradas e duração total do card; sem abrir itinerário
 
 Login (Chrome visível, sessão dela):
 

@@ -25,12 +25,31 @@ def save_catalog(catalog: dict[str, Any], path: Path | None = None) -> Path:
     return target
 
 
-def catalog_airports(catalog: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+ALL_PROGRAMS = ("latam", "azul", "smiles")
+RIO_SKIP = {"GIG", "SDU", "RIO"}
+
+
+def airport_programs(item: dict[str, Any]) -> tuple[str, ...]:
+    raw = item.get("programs")
+    if not raw:
+        return ALL_PROGRAMS
+    return tuple(str(name).lower() for name in raw)
+
+
+def serves_program(item: dict[str, Any], program: str | None) -> bool:
+    if not program:
+        return True
+    return program.lower() in airport_programs(item)
+
+
+def catalog_airports(catalog: dict[str, Any] | None = None, program: str | None = None) -> list[dict[str, Any]]:
     data = catalog or load_catalog()
     airports: list[dict[str, Any]] = []
     seen: set[str] = set()
     for region in data.get("regions") or []:
         for airport in region.get("airports") or []:
+            if not serves_program(airport, program):
+                continue
             code = str(airport.get("iata") or "").upper()
             if not code or code in seen:
                 continue
@@ -42,9 +61,30 @@ def catalog_airports(catalog: dict[str, Any] | None = None) -> list[dict[str, An
                     "region": region.get("id"),
                     "region_label": region.get("label"),
                     "kind": region.get("kind") or "national",
+                    "programs": list(airport_programs(airport)),
                 }
             )
     return airports
+
+
+def region_destinations(
+    region: dict[str, Any],
+    program: str | None = None,
+    origin: str | None = None,
+) -> list[tuple[str, str]]:
+    origin_code = (origin or "").strip().upper()
+    skip = set(CITY_AIRPORTS.get(origin_code) or ())
+    if origin_code in RIO_SKIP:
+        skip.update(RIO_SKIP)
+    dests: list[tuple[str, str]] = []
+    for airport in region.get("airports") or []:
+        if not serves_program(airport, program):
+            continue
+        code = str(airport.get("iata") or "").upper()
+        if not code or code == origin_code or code in skip:
+            continue
+        dests.append((code, str(airport.get("city") or code)))
+    return dests
 
 
 def catalog_pairs(catalog: dict[str, Any] | None = None) -> list[dict[str, str]]:
@@ -111,35 +151,101 @@ REGION_ALIASES = {
     "brasil": "brasil",
     "nacional": "brasil",
     "nacionais": "brasil",
-    "italia": "italia",
-    "italy": "italia",
-    "espanha": "espanha",
-    "spain": "espanha",
-    "portugal": "portugal",
-    "alemanha": "alemanha",
-    "germany": "alemanha",
-    "franca": "franca",
-    "france": "franca",
-    "estados-unidos": "estados-unidos",
-    "estados unidos": "estados-unidos",
-    "eua": "estados-unidos",
-    "usa": "estados-unidos",
-    "chile": "chile",
-    "reino-unido": "reino-unido",
-    "reino unido": "reino-unido",
-    "uk": "reino-unido",
-    "inglaterra": "reino-unido",
-    "argentina": "argentina",
-    "japao": "japao",
-    "japan": "japao",
-    "china": "china",
+    "europa": "europa",
+    "europe": "europa",
+    "italia": "europa",
+    "italy": "europa",
+    "espanha": "europa",
+    "spain": "europa",
+    "portugal": "europa",
+    "alemanha": "europa",
+    "germany": "europa",
+    "franca": "europa",
+    "france": "europa",
+    "reino-unido": "europa",
+    "reino unido": "europa",
+    "uk": "europa",
+    "inglaterra": "europa",
+    "belgica": "europa",
+    "holanda": "europa",
+    "paises baixos": "europa",
+    "america-norte": "america-norte",
+    "america do norte": "america-norte",
+    "america-do-norte": "america-norte",
+    "estados-unidos": "america-norte",
+    "estados unidos": "america-norte",
+    "eua": "america-norte",
+    "usa": "america-norte",
+    "mexico": "america-norte",
+    "america-sul": "america-sul",
+    "america do sul": "america-sul",
+    "america-do-sul": "america-sul",
+    "chile": "america-sul",
+    "argentina": "america-sul",
+    "peru": "america-sul",
+    "colombia": "america-sul",
+    "paraguai": "america-sul",
+    "uruguai": "america-sul",
+    "america-central": "america-central",
+    "america central": "america-central",
+    "caribe": "america-central",
+    "asia": "asia",
+    "japao": "asia",
+    "japan": "asia",
+    "china": "asia",
+    "oriente-medio": "oriente-medio",
+    "oriente medio": "oriente-medio",
+    "africa": "africa",
 }
 
 
-def resolve_destinations(where: str, catalog: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+AREA_AIRPORTS = {
+    "italia": ["FCO", "MXP"],
+    "italy": ["FCO", "MXP"],
+    "espanha": ["MAD", "BCN"],
+    "spain": ["MAD", "BCN"],
+    "portugal": ["LIS", "OPO"],
+    "alemanha": ["FRA", "BER", "MUC"],
+    "germany": ["FRA", "BER", "MUC"],
+    "franca": ["CDG"],
+    "france": ["CDG"],
+    "reino-unido": ["LHR"],
+    "reino unido": ["LHR"],
+    "uk": ["LHR"],
+    "inglaterra": ["LHR"],
+    "belgica": ["BRU"],
+    "holanda": ["AMS"],
+    "paises baixos": ["AMS"],
+    "estados-unidos": ["MIA", "JFK", "MCO", "LAX", "FLL"],
+    "estados unidos": ["MIA", "JFK", "MCO", "LAX", "FLL"],
+    "eua": ["MIA", "JFK", "MCO", "LAX", "FLL"],
+    "usa": ["MIA", "JFK", "MCO", "LAX", "FLL"],
+    "mexico": ["MEX", "CUN"],
+    "chile": ["SCL"],
+    "argentina": ["EZE", "BRC", "COR", "MDZ"],
+    "peru": ["LIM", "CUZ"],
+    "colombia": ["BOG", "CTG"],
+    "paraguai": ["ASU"],
+    "uruguai": ["MVD", "PDP"],
+    "curacao": ["CUR"],
+    "caribe": ["CUR", "CUN", "PUJ"],
+    "japao": ["NRT"],
+    "japan": ["NRT"],
+    "china": ["PEK", "PVG"],
+}
+
+
+def resolve_destinations(
+    where: str,
+    catalog: dict[str, Any] | None = None,
+    program: str | None = None,
+) -> list[dict[str, Any]]:
     data = catalog or load_catalog()
     token = _fold(where)
-    airports = catalog_airports(data)
+    airports = catalog_airports(data, program=program)
+    if token in AREA_AIRPORTS:
+        wanted = {code.upper() for code in AREA_AIRPORTS[token]}
+        return [item for item in airports if item["iata"] in wanted]
     if len(token) == 3 and token.isalpha():
         code = token.upper()
         match = next((item for item in airports if item["iata"] == code), None)

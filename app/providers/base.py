@@ -23,6 +23,14 @@ class Offer:
     booking_url: str | None
     departure_time: str | None = None
     arrival_time: str | None = None
+    duration: str | None = None
+    operators: str | None = None
+    layover: str | None = None
+    return_time: str | None = None
+    return_arrival: str | None = None
+    fare: str | None = None
+    segments: list[dict[str, Any]] | None = None
+    trip_kind: str = "round_trip"
 
     def as_row(self, search_id: int, found_at: str) -> dict[str, Any]:
         data = asdict(self)

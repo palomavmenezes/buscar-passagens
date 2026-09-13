@@ -6,8 +6,26 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env")
 
-DATA_DIR = ROOT / "data"
-DATA_DIR.mkdir(exist_ok=True)
+IS_VERCEL = os.getenv("VERCEL") == "1"
+ENABLE_HARVEST = os.getenv("ENABLE_HARVEST", "0" if IS_VERCEL else "1") == "1"
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "").strip().lower()
+SESSION_HTTPS = IS_VERCEL or os.getenv("SESSION_HTTPS", "0") == "1"
+
+
+def _writable_dir(path: Path) -> Path:
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        probe = path / ".write-check"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink(missing_ok=True)
+        return path
+    except OSError:
+        fallback = Path("/tmp/viannas-data")
+        fallback.mkdir(parents=True, exist_ok=True)
+        return fallback
+
+
+DATA_DIR = _writable_dir(ROOT / "data")
 DB_PATH = DATA_DIR / "passagens.db"
 
 APP_PASSWORD = os.getenv("APP_PASSWORD", "viannas-2026")
@@ -33,6 +51,11 @@ else:
 HARVEST_DIR.mkdir(parents=True, exist_ok=True)
 HARVEST_STATE_DIR = DATA_DIR / "coleta-estado"
 HARVEST_STATE_DIR.mkdir(parents=True, exist_ok=True)
+HARVEST_OK_DIR = HARVEST_STATE_DIR / "ultimo-ok"
+HARVEST_OK_DIR.mkdir(parents=True, exist_ok=True)
+HARVEST_BACKUP_DIR = HARVEST_STATE_DIR / "backup"
+HARVEST_BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+MIN_PUBLISH_MILES = 5000
 HARVEST_HOURS = tuple(
     int(part.strip())
     for part in os.getenv("HARVEST_HOURS", "0,12").split(",")
@@ -67,12 +90,31 @@ AZUL_PROFILE_DIR = DATA_DIR / "azul-chrome-profile"
 SMILES_PROFILE_DIR = DATA_DIR / "smiles-chrome-profile"
 LATAM_MAX_ROUTES = max(1, int(os.getenv("LATAM_MAX_ROUTES", "6")))
 LATAM_MAX_PER_RUN = max(1, int(os.getenv("LATAM_MAX_PER_RUN", "6")))
-LATAM_PAUSE_SECONDS = float(os.getenv("LATAM_PAUSE_SECONDS", "60"))
+LATAM_PAUSE_SECONDS = float(os.getenv("LATAM_PAUSE_SECONDS", "150"))
+# 0 = clicar em todas as idas LIGHT para ler as voltas.
+LATAM_MAX_IDA_CLICKS = max(0, int(os.getenv("LATAM_MAX_IDA_CLICKS", "10")))
 LATAM_COOLDOWN_SECONDS = float(os.getenv("LATAM_COOLDOWN_SECONDS", "180"))
 LATAM_BATCH_GAP_SECONDS = float(os.getenv("LATAM_BATCH_GAP_SECONDS", "600"))
 LATAM_HEADLESS = os.getenv("LATAM_HEADLESS", "0") == "1"
+# Chrome já aberto com --remote-debugging-port. Ex.: http://127.0.0.1:9222
+CHROME_CDP = os.getenv("CHROME_CDP", "").strip()
 CIA_HEADLESS = os.getenv("CIA_HEADLESS", os.getenv("LATAM_HEADLESS", "0")) == "1"
-CIA_PAUSE_SECONDS = float(os.getenv("CIA_PAUSE_SECONDS", os.getenv("LATAM_PAUSE_SECONDS", "60")))
+CIA_PAUSE_SECONDS = float(os.getenv("CIA_PAUSE_SECONDS", os.getenv("LATAM_PAUSE_SECONDS", "150")))
+LATAM_USER = os.getenv("LATAM_USER", "").strip()
+LATAM_PASSWORD = os.getenv("LATAM_PASSWORD", "").strip()
+AZUL_USER = os.getenv("AZUL_USER", "").strip()
+AZUL_PASSWORD = os.getenv("AZUL_PASSWORD", "").strip()
+SMILES_USER = os.getenv("SMILES_USER", "").strip()
+SMILES_PASSWORD = os.getenv("SMILES_PASSWORD", "").strip()
+
+
+def airline_credentials(program: str) -> tuple[str, str]:
+    prefix = (program or "").strip().upper()
+    return (
+        os.getenv(f"{prefix}_USER", "").strip(),
+        os.getenv(f"{prefix}_PASSWORD", "").strip(),
+    )
+
 
 CABIN_LABELS = {
     "economy": "Econômica",
@@ -112,8 +154,41 @@ PROGRAM_LABELS = {
 }
 
 
-def harvest_route_path(program_dir: Path, origin: str, destination: str, day: str) -> Path:
-    return program_dir / str(day) / f"{origin.upper()}-{destination.upper()}.json"
+def harvest_city_folder(city: str | None, fallback: str) -> str:
+    name = (city or fallback or "").strip()
+    for char in '<>:"/\\|?*':
+        name = name.replace(char, "")
+    name = name.strip(" .")
+    return name or (fallback or "destino").upper()
+
+
+def harvest_route_path(
+    program_dir: Path,
+    origin: str,
+    destination: str,
+    day: str,
+    job: dict | None = None,
+) -> Path:
+    job = job or {}
+    program = str(job.get("program") or program_dir.name).lower()
+    file_name = f"{origin.upper()}-{destination.upper()}.json"
+    if program not in {"azul", "latam"}:
+        return program_dir / str(day) / file_name
+    kind = str(job.get("kind") or "").lower()
+    bucket = "Internacionais" if kind == "international" else "Nacionais"
+    city = harvest_city_folder(job.get("city"), str(job.get("destination") or destination))
+    return program_dir / bucket / city / str(day) / file_name
+
+
+def harvest_ok_route_path(
+    program: str,
+    origin: str,
+    destination: str,
+    day: str,
+    job: dict | None = None,
+) -> Path:
+    payload = {**(job or {}), "program": program}
+    return harvest_route_path(HARVEST_OK_DIR / program, origin, destination, day, job=payload)
 
 
 def has_miles_provider() -> bool:
