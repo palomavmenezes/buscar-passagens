@@ -76,7 +76,7 @@ HARVEST_DESTINATIONS = [
 ]
 HARVEST_PROGRAMS = [
     name.strip().lower()
-    for name in os.getenv("HARVEST_PROGRAMS", "smiles,azul,latam").split(",")
+    for name in os.getenv("HARVEST_PROGRAMS", "azul,latam").split(",")
     if name.strip()
 ]
 HARVEST_DATE_OFFSETS = [

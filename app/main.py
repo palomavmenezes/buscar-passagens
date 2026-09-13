@@ -226,7 +226,7 @@ def browse_filters(request: Request) -> dict[str, str]:
         "destination": destination,
         "trip_type": query.get("tipo") or query.get("trip_type") or "one_way",
         "cabin": cabin if cabin in CABIN_LABELS else "all",
-        "program": program if program in {"latam", "azul", "smiles"} else "",
+        "program": program if program in {"latam", "azul"} else "",
         "date_from": query.get("ida") or query.get("date_start") or "",
         "date_to": query.get("volta") or query.get("date_end") or "",
         "airline": query.get("companhia") or query.get("airline") or "",
@@ -742,7 +742,7 @@ async def create_busca(
         if flag == "on"
     ]
     if not programs:
-        programs = ["smiles", "azul", "latam"]
+        programs = ["azul", "latam"]
     payload: dict[str, Any] = {
         "origins": origin_codes,
         "destinations": dest_codes,

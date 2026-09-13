@@ -106,12 +106,11 @@ def records_from_db(origin: str | None = None) -> list[dict[str, Any]]:
     for row in rows:
         program = (row.get("miles_program") or "").lower()
         source = (row.get("source") or "").lower()
-        if program not in {"latam", "azul", "smiles"} and source not in {
+        if program not in {"latam", "azul"} and source not in {
             "latam",
             "latampass",
             "azul",
             "tudoazul",
-            "smiles",
         }:
             continue
         dest = (row.get("destination") or "").upper()

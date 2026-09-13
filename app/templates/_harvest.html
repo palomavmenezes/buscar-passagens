@@ -1,24 +1,22 @@
 <aside class="harvest-box">
   <div>
     <p class="kicker">Coleta própria</p>
-    <h2>LATAM, Azul e GOL no site de cada cia</h2>
+    <h2>LATAM e Azul no site de cada cia</h2>
     <p>
       Sem API paga. Cada coletor abre o Chrome com a <strong>sua sessão</strong>,
       preenche a home e grava as milhas em <code>data/harvest/</code>.
-      O painel lê isso o dia inteiro.
+      O painel lê isso o dia inteiro. GOL/Smiles ainda não entra na vitrine.
     </p>
     <p>
       Login uma vez no terminal:
       <code>python3 -m app.collectors.latam login</code>,
-      <code>python3 -m app.collectors.azul login</code>,
-      <code>python3 -m app.collectors.smiles login</code>.
+      <code>python3 -m app.collectors.azul login</code>.
       Até {{ harvest.latam_max }} rotas por cia às
       {% for hour in harvest.hours %}{{ '%02d'|format(hour) }}h{% if not loop.last %} e {% endif %}{% endfor %}.
     </p>
     <p class="muted">
       LATAM{% if harvest.latam_ready %}: sessão salva{% else %}: precisa de login{% endif %} ·
-      Azul{% if harvest.azul_ready %}: sessão salva{% else %}: precisa de login{% endif %} ·
-      GOL/Smiles{% if harvest.smiles_ready %}: sessão salva{% else %}: precisa de login{% endif %}.
+      Azul{% if harvest.azul_ready %}: sessão salva{% else %}: precisa de login{% endif %}.
       {% if harvest.last %}
         Última coleta {{ harvest.last.label }} · {{ harvest.last.offers or 0 }} ofertas.
       {% else %}
