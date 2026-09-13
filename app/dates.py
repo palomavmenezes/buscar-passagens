@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from calendar import monthrange
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from app.config import MAX_FLEX_DAYS, MAX_YEAR_DAYS
 
@@ -97,6 +97,34 @@ def format_br_date(value: str | None) -> str:
         year, month, day = text.split("-")
         return f"{day}/{month}/{year}"
     return str(value)
+
+
+def format_updated(found_at: str | None) -> str:
+    if not found_at:
+        return "sem atualização"
+    text = str(found_at).strip()
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return format_br_date(text)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
+    seconds = int((now - parsed.astimezone(timezone.utc)).total_seconds())
+    if seconds < 45:
+        return "agora"
+    if seconds < 3600:
+        minutes = max(1, seconds // 60)
+        return f"há {minutes} min"
+    if seconds < 86400:
+        hours = seconds // 3600
+        return f"há {hours} h"
+    days = seconds // 86400
+    if days == 1:
+        return "há 1 dia"
+    if days < 15:
+        return f"há {days} dias"
+    return format_br_date(text)
 
 
 def format_clock_label(value: str | None) -> str:

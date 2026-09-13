@@ -8,8 +8,9 @@ data/*.db
 data/*.xlsx
 data/harvest/
 data/coleta-estado/
-data/latam-profile/
 data/latam-chrome-profile/
+data/azul-chrome-profile/
+data/smiles-chrome-profile/
 data/playwright-browsers/
 .DS_Store
 node_modules/

@@ -5,9 +5,10 @@ from typing import Any
 
 import httpx
 
-from app.airports import collapse_rio_codes
+from app.airports import collapse_rio_codes, expand_city_airports
 from app.config import GECKOAPI_API_KEY
 from app.dates import sample_dates
+from app.miles_budget import azul_fare_pairs
 from app.providers.base import Offer
 
 GECKO_URL = "https://api.geckoapi.com.br/v1/extract"
@@ -48,7 +49,7 @@ def azul_url(origin: str, dest: str, day: str, return_date: str | None = None) -
     url = (
         "https://www.voeazul.com.br/br/pt/home/selecao-voo"
         f"?c[0].ds={origin}&c[0].as={dest}&c[0].std={pretty}"
-        "&p[0].t=ADT&p[0].c=1&p[0].tc=BRL"
+        "&p[0].t=ADT&p[0].c=1&p[0].tc=BRL&p[0].cp=true"
     )
     if return_date:
         back = return_date[5:7] + "%2F" + return_date[8:10] + "%2F" + return_date[:4]
@@ -266,51 +267,102 @@ def _azul_iata(*values: Any) -> str | None:
     return None
 
 
-def _azul_journey_best(journey: dict) -> tuple[int, float | None] | None:
-    best = None
+def _money_amount(node: Any) -> float | None:
+    if isinstance(node, dict):
+        return _num(node.get("amount") or node.get("value"))
+    return _num(node)
+
+
+def _iso_clock(value: Any) -> str | None:
+    text = str(value or "")
+    if "T" in text:
+        clock = text.split("T", 1)[1][:5]
+        if len(clock) == 5 and clock[2] == ":":
+            return clock
+    return None
+
+
+def _azul_duration(value: Any) -> str | None:
+    text = str(value or "")
+    if text.startswith("PT"):
+        hours = 0
+        minutes = 0
+        if "H" in text:
+            left, text = text.replace("PT", "").split("H", 1)
+            hours = int(left or 0)
+        text = text.replace("PT", "").replace("M", "")
+        if text.isdigit():
+            minutes = int(text)
+        if hours or minutes:
+            return f"{hours}h {minutes:02d}m" if hours else f"{minutes}m"
+    return text or None
+
+
+def _azul_code_set(code: str) -> set[str]:
+    token = (code or "").strip().upper()
+    return {token, *expand_city_airports(token)}
+
+
+def _azul_option_cash(option: dict) -> float:
+    total = _money_amount(option.get("totalMoney"))
+    taxes = _money_amount(option.get("taxesAndFees"))
+    if total is None:
+        return 0.0
+    if taxes is None:
+        return float(total)
+    return max(0.0, float(total) - float(taxes))
+
+
+def _azul_journey_fares(journey: dict) -> list[tuple[str, int, float | None]]:
+    normal = None
+    diamond = None
     for fare in journey.get("fares") or []:
         for option in fare.get("pointsOptions") or []:
-            miles = _miles(option.get("discountedPoints") or option.get("points"))
-            if miles is None:
+            if _azul_option_cash(option) > 80:
                 continue
-            money = option.get("taxesAndFees") or option.get("totalMoney") or {}
-            taxes = _num(money.get("amount") if isinstance(money, dict) else money)
-            if best is None or miles < best[0]:
-                best = (miles, taxes)
-    return best
+            taxes = _money_amount(option.get("taxesAndFees"))
+            full = _miles(option.get("points"))
+            disc = _miles(option.get("discountedPoints"))
+            if full and (normal is None or full < normal[0]):
+                normal = (full, taxes)
+            if disc and disc != full and (diamond is None or disc < diamond[0]):
+                diamond = (disc, taxes)
+            elif disc and not full and (diamond is None or disc < diamond[0]):
+                diamond = (disc, taxes)
+    rows: list[tuple[str, int, float | None]] = []
+    for fare_name, miles in azul_fare_pairs(
+        normal[0] if normal else None,
+        diamond[0] if diamond else None,
+    ):
+        taxes = None
+        if normal and miles == normal[0]:
+            taxes = normal[1]
+        elif diamond and miles == diamond[0]:
+            taxes = diamond[1]
+        rows.append((fare_name, miles, taxes))
+    return rows
+
+
+def _azul_trips(data: dict) -> list[dict]:
+    if isinstance(data.get("trips"), list):
+        return data["trips"]
+    nested = data.get("data")
+    if isinstance(nested, dict) and isinstance(nested.get("trips"), list):
+        return nested["trips"]
+    return []
 
 
 def _parse_azul(data: dict, origin: str, dest: str, day: str, return_date: str | None) -> list[Offer]:
     offers: list[Offer] = []
-    for trip in data.get("trips") or []:
-        journeys = trip.get("journeys") or [trip]
-        if return_date and len(journeys) >= 2:
-            out_best = _azul_journey_best(journeys[0])
-            in_best = _azul_journey_best(journeys[1])
-            if out_best and in_best:
-                offers.append(
-                    Offer(
-                        origin=origin,
-                        destination=dest,
-                        departure_date=day,
-                        return_date=return_date,
-                        airline="Azul",
-                        stops=None,
-                        cabin="economy",
-                        price_type="miles",
-                        currency="BRL",
-                        price_cash=None,
-                        miles=out_best[0] + in_best[0],
-                        miles_program="azul",
-                        taxes=(out_best[1] or 0) + (in_best[1] or 0),
-                        source="tudoazul",
-                        booking_url=azul_url(origin, dest, day),
-                    )
-                )
-                continue
-        for journey in journeys:
-            best = _azul_journey_best(journey)
-            if not best:
+    origin_set = _azul_code_set(origin)
+    dest_set = _azul_code_set(dest)
+    trips = _azul_trips(data)
+    for trip_index, trip in enumerate(trips):
+        trip_origin = _azul_iata(trip.get("origin"), trip.get("departureStation"))
+        trip_dest = _azul_iata(trip.get("destination"), trip.get("arrivalStation"))
+        for journey in trip.get("journeys") or []:
+            fares = _azul_journey_fares(journey)
+            if not fares:
                 continue
             segments = journey.get("segments") or []
             first = segments[0] if segments and isinstance(segments[0], dict) else {}
@@ -321,6 +373,7 @@ def _parse_azul(data: dict, origin: str, dest: str, day: str, return_date: str |
                 first.get("departureStation"),
                 first.get("origin"),
                 first.get("departure"),
+                trip_origin,
                 origin,
             ) or origin
             dest_code = _azul_iata(
@@ -329,28 +382,51 @@ def _parse_azul(data: dict, origin: str, dest: str, day: str, return_date: str |
                 last.get("arrivalStation"),
                 last.get("destination"),
                 last.get("arrival"),
+                trip_dest,
                 dest,
             ) or dest
-            offers.append(
-                Offer(
-                    origin=origin_code,
-                    destination=dest_code,
-                    departure_date=day,
-                    return_date=return_date,
-                    airline="Azul",
-                    stops=max(0, len(segments) - 1) if segments else None,
-                    cabin="economy",
-                    price_type="miles",
-                    currency="BRL",
-                    price_cash=None,
-                    miles=best[0],
-                    miles_program="azul",
-                    taxes=best[1],
-                    source="tudoazul",
-                    booking_url=azul_url(origin, dest, day),
+            inbound = origin_code in dest_set and dest_code in origin_set
+            if not inbound and trip_index == 1 and return_date:
+                inbound = True
+            kind = "volta" if inbound else "ida"
+            dep_day = return_date if inbound and return_date else day
+            dep_time = _iso_clock(journey.get("departure") or journey.get("std") or first.get("departure"))
+            arr_time = _iso_clock(journey.get("arrival") or journey.get("sta") or last.get("arrival"))
+            stops = journey.get("stopsCount")
+            if stops is None:
+                stops = max(0, len(segments) - 1) if segments else None
+            duration = _azul_duration(journey.get("duration"))
+            for fare_name, miles, taxes in fares:
+                offers.append(
+                    Offer(
+                        origin=origin_code,
+                        destination=dest_code,
+                        departure_date=dep_day,
+                        return_date=return_date if kind == "ida" else None,
+                        airline="Azul",
+                        stops=int(stops) if stops is not None else None,
+                        cabin="economy",
+                        price_type="miles",
+                        currency="BRL",
+                        price_cash=None,
+                        miles=miles,
+                        miles_program="azul",
+                        taxes=taxes,
+                        source="tudoazul",
+                        booking_url=azul_url(
+                            origin_code,
+                            dest_code,
+                            dep_day,
+                            return_date if kind == "ida" else None,
+                        ),
+                        departure_time=dep_time,
+                        arrival_time=arr_time,
+                        duration=duration,
+                        fare=fare_name,
+                        trip_kind=kind,
+                    )
                 )
-            )
-    return _cheapest_only(offers)
+    return offers
 
 
 def _parse_latam(
@@ -388,11 +464,14 @@ def _parse_latam(
                 price_cash=None,
                 miles=int(amount),
                 miles_program="latam",
-                taxes=None,
+                taxes=_num(price.get("taxes") or item.get("taxes")),
                 source="latampass",
                 booking_url=latam_url(origin, dest, day, True, return_date),
                 departure_time=flight.get("departureTime"),
                 arrival_time=flight.get("arrivalTime"),
+                duration=flight.get("duration"),
+                operators=flight.get("operators"),
+                layover=flight.get("layover"),
             )
         )
     offers.sort(key=lambda item: (item.miles or 10**9, item.departure_time or ""))
