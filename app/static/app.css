@@ -79,7 +79,30 @@ h1 { font-size: clamp(2.1rem, 5vw, 3.4rem); letter-spacing: -0.04em; }
   text-decoration: none;
   box-shadow: 0 18px 40px rgba(22, 32, 51, 0.12);
 }
-.place-card img { width: 100%; height: 280px; object-fit: cover; display: block; }
+.place-card > img { width: 100%; height: 280px; object-fit: cover; display: block; }
+.cia-logo {
+  height: 18px;
+  width: auto;
+  max-width: 88px;
+  object-fit: contain;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+.place-card .cia-logo { height: 16px; }
+.pill .cia-logo { height: 14px; margin-right: 4px; }
+.pair-head {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.pair-photo {
+  width: 112px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
 .place-hit {
   position: absolute;
   inset: 0;
@@ -209,7 +232,13 @@ h1 { font-size: clamp(2.1rem, 5vw, 3.4rem); letter-spacing: -0.04em; }
 .stats strong { font-family: Fraunces, serif; font-size: 1.5rem; }
 .search-form, .stack, .filters { display: grid; gap: 12px; }
 .search-form { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.search-form button { grid-column: 1 / -1; }
+.search-form .search-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.search-form .search-actions button { grid-column: auto; width: auto; }
 label, legend { font-weight: 600; display: grid; gap: 6px; }
 input, select, button {
   font: inherit;
@@ -247,6 +276,40 @@ fieldset { border: 1px dashed var(--line); border-radius: 12px; grid-column: 1 /
 .harvest-box p { margin: 0 0 8px; color: var(--muted); }
 .harvest-box .muted { font-size: 0.92rem; }
 .harvest-box form { flex-shrink: 0; }
+.harvest-groups {
+  display: grid;
+  gap: 16px;
+  margin-top: 14px;
+}
+.harvest-group {
+  background: #fffaf3;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+.harvest-group h3 {
+  font-size: 0.98rem;
+  margin: 0 0 8px;
+}
+.harvest-cmds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+.harvest-cmds form { margin: 0; }
+.harvest-pick {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+.harvest-pick label { margin: 0; }
+.empty-search {
+  background: #f8ece3;
+  border-color: #e4cbb6;
+  color: #6a3a16;
+}
 .radio, .check { font-weight: 500; display: flex; gap: 8px; align-items: center; }
 .pill {
   display: inline-flex;
@@ -264,11 +327,23 @@ fieldset { border: 1px dashed var(--line); border-radius: 12px; grid-column: 1 /
   font-weight: 700;
   margin-left: 6px;
 }
+.pill.excellent {
+  background: #1d6b4f;
+  color: #f4fff8;
+  font-weight: 700;
+  margin-left: 6px;
+}
 .place-card.best-price {
   box-shadow: 0 18px 40px rgba(196, 92, 38, 0.28), 0 0 0 3px #e8c15a;
 }
+.place-card.excellent-price {
+  box-shadow: 0 18px 40px rgba(29, 107, 79, 0.22), 0 0 0 3px #1d6b4f;
+}
 .results tr.best td:first-child {
   box-shadow: inset 3px 0 0 #e8c15a;
+}
+.results tr.excellent td:first-child {
+  box-shadow: inset 3px 0 0 #1d6b4f;
 }
 .results tr.pick-ida td {
   background: #e7f3f1;
@@ -359,6 +434,9 @@ th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--lin
 .pair-card.best, .flight-row.best {
   box-shadow: 0 18px 40px rgba(196, 92, 38, 0.22), 0 0 0 2px #e8c15a;
 }
+.pair-card.excellent, .flight-row.excellent {
+  box-shadow: 0 18px 40px rgba(29, 107, 79, 0.18), 0 0 0 2px #1d6b4f;
+}
 .flight-fare .button { margin-top: 10px; }
 .icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
 .icon { width: 1.05em; height: 1.05em; flex-shrink: 0; display: inline-block; vertical-align: -0.15em; }
@@ -381,6 +459,7 @@ th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--lin
 .badge-total { background: var(--ink); color: var(--paper); }
 .badge-quiet { background: #f3eadb; color: var(--muted); text-transform: none; letter-spacing: 0; }
 .badge-best { background: #e8c15a; color: #5a3d00; }
+.badge-excellent { background: #1d6b4f; color: #f4fff8; }
 .round-how {
   display: flex;
   flex-wrap: wrap;
@@ -513,6 +592,7 @@ th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--lin
 }
 @media (max-width: 800px) {
   .search-form, .filters { grid-template-columns: 1fr; display: grid; }
+  .harvest-pick { grid-template-columns: 1fr; }
   .mast {
     display: grid;
     grid-template-columns: 1fr auto auto;
@@ -559,5 +639,5 @@ th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--lin
   .harvest-box form { width: 100%; }
   .harvest-box button { width: 100%; }
   .gallery { grid-template-columns: 1fr; }
-  .place-card, .place-card img { min-height: 240px; height: auto; }
+  .place-card, .place-card > img { min-height: 240px; height: auto; }
 }

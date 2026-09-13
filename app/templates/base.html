@@ -71,6 +71,12 @@
   </header>
   {% endif %}
   <div class="frame">
+    {% if aviso %}
+    <p class="notice">{{ aviso }}</p>
+    {% endif %}
+    {% if erro %}
+    <p class="error">{{ erro }}</p>
+    {% endif %}
     {% block body %}{% endblock %}
   </div>
   <script src="/static/app.js"></script>

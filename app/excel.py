@@ -64,7 +64,14 @@ def build_workbook(rows: list[dict]) -> bytes:
                 item.get("trip_kind") or ("round_trip" if item.get("return_date") else "ida"),
                 item.get("trip_kind") or "",
             ),
-            "Melhor preço!" if item.get("best_price") else "",
+            " ".join(
+                part
+                for part in (
+                    "Preço excelente!" if item.get("excellent_price") else "",
+                    "Melhor preço!" if item.get("best_price") else "",
+                )
+                if part
+            ),
             item.get("source") or "",
             item.get("booking_url") or "",
             item.get("found_at") or "",

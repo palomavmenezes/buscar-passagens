@@ -1,18 +1,26 @@
 {% if items %}
 <div class="flight-list">
   {% for item in items %}
-  <article class="pair-card{% if item.best_price %} best{% endif %}">
+  <article class="pair-card{% if item.best_price %} best{% endif %}{% if item.excellent_price %} excellent{% endif %}">
     <header class="pair-head">
+      {% if item.image %}
+      <img class="pair-photo" src="{{ item.image }}" alt="{{ item.city }}" loading="lazy">
+      {% endif %}
       <div>
         <div class="pair-badges">
           <span class="badge badge-quiet">
             <svg class="icon" aria-hidden="true"><use href="#i-pin"></use></svg>
             {{ 'Nacional' if item.national else 'Internacional' }}
           </span>
+          {% if item.excellent_price %}
+          <span class="badge badge-excellent">
+            Preço excelente!
+          </span>
+          {% endif %}
           {% if item.best_price %}
           <span class="badge badge-best">
             <svg class="icon" aria-hidden="true"><use href="#i-star"></use></svg>
-            Melhor preço
+            Melhor preço!
           </span>
           {% endif %}
         </div>
@@ -42,6 +50,7 @@
             {{ item.outbound.departure_date|voo(item.outbound.departure_time, item.outbound.arrival_time) }}
           </p>
           <div class="pair-leg-meta">
+            {% if item.outbound.logo %}<img class="cia-logo" src="{{ item.outbound.logo }}" alt="">{% endif %}
             <span class="badge">{{ program_labels.get(item.outbound.miles_program, item.outbound.miles_program or 'Milhas') }}</span>
             {% if item.outbound.fare %}<span class="badge badge-quiet">{{ item.outbound.fare }}</span>{% endif %}
             {% if item.outbound.cabin and item.outbound.cabin != 'economy' %}
@@ -72,6 +81,7 @@
             {{ item.inbound.departure_date|voo(item.inbound.departure_time, item.inbound.arrival_time) }}
           </p>
           <div class="pair-leg-meta">
+            {% if item.inbound.logo %}<img class="cia-logo" src="{{ item.inbound.logo }}" alt="">{% endif %}
             <span class="badge">{{ program_labels.get(item.inbound.miles_program, item.inbound.miles_program or 'Milhas') }}</span>
             {% if item.inbound.fare %}<span class="badge badge-quiet">{{ item.inbound.fare }}</span>{% endif %}
             {% if item.inbound.cabin and item.inbound.cabin != 'economy' %}

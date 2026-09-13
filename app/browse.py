@@ -3,8 +3,9 @@ from __future__ import annotations
 from typing import Any
 
 from app.airports import decorate, related_airports
-from app.dates import format_updated
+from app.dates import duration_minutes, format_updated
 from app.db import query_results
+from app.miles_budget import EXCELLENT_MILES, miles_within_budget
 
 
 def _filters(
@@ -46,6 +47,47 @@ def _is_one_way(row: dict[str, Any]) -> bool:
     return kind in {"ida", "volta"}
 
 
+def _duration_key(row: dict[str, Any]) -> int:
+    minutes = duration_minutes(row.get("duration"))
+    return minutes if minutes is not None else 10**9
+
+
+def _better_deal(candidate: dict[str, Any], current: dict[str, Any] | None) -> bool:
+    if current is None:
+        return True
+    left = int(candidate["miles"])
+    right = int(current["miles"])
+    if left < right:
+        return True
+    if left > right:
+        return False
+    return _duration_key(candidate) < _duration_key(current)
+
+
+def tag_deal_flags(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for row in rows:
+        miles = row.get("miles")
+        row["excellent_price"] = bool(miles) and int(miles) < EXCELLENT_MILES
+        row["best_price"] = False
+        kind = (row.get("trip_kind") or "ida").lower()
+        if kind not in {"ida", "volta", "round_trip"}:
+            kind = "round_trip" if row.get("return_date") else "ida"
+        key = (kind, row.get("cabin") or "economy")
+        groups.setdefault(key, []).append(row)
+    for items in groups.values():
+        priced = [row for row in items if row.get("miles")]
+        if not priced:
+            continue
+        winner = min(priced, key=lambda row: (int(row["miles"]), _duration_key(row)))
+        best_miles = int(winner["miles"])
+        best_duration = _duration_key(winner)
+        for row in priced:
+            if int(row["miles"]) == best_miles and _duration_key(row) == best_duration:
+                row["best_price"] = True
+    return rows
+
+
 def _best_by_key(rows: list[dict[str, Any]], key_of) -> dict[Any, dict[str, Any]]:
     best: dict[Any, dict[str, Any]] = {}
     for row in rows:
@@ -54,9 +96,9 @@ def _best_by_key(rows: list[dict[str, Any]], key_of) -> dict[Any, dict[str, Any]
             continue
         key = key_of(row)
         current = best.get(key)
-        if current is None or int(miles) < int(current["miles"]):
+        if _better_deal(row, current):
             best[key] = row
-        elif int(miles) == int(current["miles"]):
+        elif current is not None and int(miles) == int(current["miles"]) and _duration_key(row) == _duration_key(current):
             if str(row.get("found_at") or "") > str(current.get("found_at") or ""):
                 best[key] = row
     return best
@@ -65,18 +107,14 @@ def _best_by_key(rows: list[dict[str, Any]], key_of) -> dict[Any, dict[str, Any]
 def _with_meta(row: dict[str, Any]) -> dict[str, Any]:
     item = decorate(row)
     item["updated"] = format_updated(row.get("found_at"))
+    miles = item.get("miles")
+    item["excellent_price"] = bool(miles) and int(miles) < EXCELLENT_MILES
     item["best_price"] = False
     return item
 
 
 def _mark_best(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    priced = [item for item in items if item.get("miles")]
-    if not priced:
-        return items
-    best = min(int(item["miles"]) for item in priced)
-    for item in items:
-        item["best_price"] = bool(item.get("miles")) and int(item["miles"]) == best
-    return items
+    return tag_deal_flags(items)
 
 
 def cheapest_one_ways(
@@ -169,6 +207,55 @@ def cheapest_round_trips(
     national = _mark_best([card for card in cards if card.get("national")])
     international = _mark_best([card for card in cards if not card.get("national")])
     return {"national": national, "international": international, "all": national + international}
+
+
+def _card_in_budget(
+    card: dict[str, Any],
+    origin: str,
+    trip_type: str,
+    miles_min: int | None,
+    miles_max: int | None,
+) -> bool:
+    dest = str(card.get("destination") or "")
+    cabin = str(card.get("cabin") or "economy")
+    program = str(card.get("miles_program") or "latam")
+    fare = card.get("fare")
+    return miles_within_budget(
+        card.get("miles"),
+        origin or str(card.get("origin") or ""),
+        dest,
+        program=program,
+        cabin=cabin,
+        fare=str(fare) if fare else None,
+        trip_type=trip_type,
+        miles_min=miles_min,
+        miles_max=miles_max,
+    )
+
+
+def apply_miles_budget(
+    cards: dict[str, list[dict[str, Any]]],
+    origin: str,
+    trip_type: str,
+    miles_min: int | None,
+    miles_max: int | None,
+) -> dict[str, list[dict[str, Any]]]:
+    def keep(card: dict[str, Any]) -> bool:
+        return _card_in_budget(card, origin, trip_type, miles_min, miles_max)
+
+    national = _mark_best([card for card in cards.get("national") or [] if keep(card)])
+    international = _mark_best([card for card in cards.get("international") or [] if keep(card)])
+    return {"national": national, "international": international, "all": national + international}
+
+
+def filter_rows_budget(
+    rows: list[dict[str, Any]],
+    origin: str,
+    trip_type: str,
+    miles_min: int | None,
+    miles_max: int | None,
+) -> list[dict[str, Any]]:
+    return [row for row in rows if _card_in_budget(row, origin, trip_type, miles_min, miles_max)]
 
 
 def browse_flights(
