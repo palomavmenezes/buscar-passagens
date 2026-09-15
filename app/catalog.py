@@ -172,6 +172,9 @@ REGION_ALIASES = {
     "brasil": "brasil",
     "nacional": "brasil",
     "nacionais": "brasil",
+    "internacional": "internacional",
+    "internacionais": "internacional",
+    "international": "internacional",
     "europa": "europa",
     "europe": "europa",
     "italia": "europa",
@@ -274,7 +277,7 @@ def resolve_destinations(
                 "region": "sudeste",
                 "region_label": "Sudeste",
                 "kind": "national",
-                "programs": ["latam", "azul"],
+                "programs": ["latam", "azul", "smiles"],
                 "search_airports": list(info),
             }
         ]
@@ -291,6 +294,8 @@ def resolve_destinations(
     region_id = REGION_ALIASES.get(token, token)
     if region_id == "brasil":
         return [item for item in airports if item.get("kind") != "international"]
+    if region_id in {"internacional", "internacionais", "international"}:
+        return [item for item in airports if item.get("kind") == "international"]
     matched = [item for item in airports if item.get("region") == region_id]
     if matched:
         return matched
@@ -314,6 +319,19 @@ def _leg_job(origin: str, dest: str, airport: dict[str, Any], day: date, leg: st
         "program": program,
         "leg": leg,
     }
+
+
+def _round_job(
+    origin: str,
+    dest: str,
+    airport: dict[str, Any],
+    day: date,
+    return_day: date,
+    program: str = "latam",
+) -> dict[str, Any]:
+    job = _leg_job(origin, dest, airport, day, "ida", program)
+    job["return_day"] = return_day.isoformat()
+    return job
 
 
 def collapse_city_jobs(jobs: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -422,12 +440,19 @@ def requested_jobs(
         for airport in airports:
             dest = airport["iata"]
             for friday, monday in friday_monday_weekends(month):
-                jobs.append(_leg_job(start, dest, airport, friday, "ida", prog))
                 if invert:
-                    jobs.append(_leg_job(dest, start, airport, monday, "volta", prog))
+                    jobs.append(_round_job(start, dest, airport, friday, monday, prog))
+                else:
+                    jobs.append(_leg_job(start, dest, airport, friday, "ida", prog))
         return jobs
-    out_days = date_span(date_from, date_to)
-    back_days = date_span(return_from, return_to)
+    out_days = date_span(date_from, date_to, max_days=180)
+    back_days = date_span(return_from, return_to, max_days=180)
+    if out_days and back_days:
+        for airport in airports:
+            dest = airport["iata"]
+            for out_day, back_day in zip(out_days, back_days):
+                jobs.append(_round_job(start, dest, airport, out_day, back_day, prog))
+        return jobs
     if out_days or back_days:
         for airport in airports:
             dest = airport["iata"]
@@ -451,10 +476,7 @@ def requested_jobs(
         out_day, back_day = days[0], days[-1]
         for airport in airports:
             dest = airport["iata"]
-            jobs.append(_leg_job(start, dest, airport, out_day, "ida", prog))
-        for airport in airports:
-            dest = airport["iata"]
-            jobs.append(_leg_job(dest, start, airport, back_day, "volta", prog))
+            jobs.append(_round_job(start, dest, airport, out_day, back_day, prog))
         return jobs
     for airport in airports:
         dest = airport["iata"]
