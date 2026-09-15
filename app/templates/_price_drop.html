@@ -1,0 +1,8 @@
+{% if item.price_move and (item.price_move.fell or item.price_move.rose) %}
+<span class="price-drop{% if item.price_move.rose %} price-rise{% endif %}{% if compact|default(false) %} compact{% endif %}" aria-label="{{ 'Subiu' if item.price_move.rose else 'Caiu' }}: era {{ item.price_move.was|milhas }} · está {{ item.price_move.now|milhas }}">
+  <svg class="icon price-drop-icon" aria-hidden="true">
+    <use href="#{{ 'i-rise' if item.price_move.rose else 'i-fall' }}"></use>
+  </svg>
+  <span class="price-drop-copy">era {{ item.price_move.was|milhas }} · está {{ item.price_move.now|milhas }}</span>
+</span>
+{% endif %}

@@ -37,6 +37,14 @@
     <symbol id="i-star" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5">
       <path d="m12 2 2.9 6.3L22 9.3l-5 4.8 1.2 6.9L12 17.8 5.8 21l1.2-6.9-5-4.8 7.1-1Z"/>
     </symbol>
+    <symbol id="i-fall" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="3 6 9 11 13 8 21 18"/>
+      <polyline points="14 18 21 18 21 11"/>
+    </symbol>
+    <symbol id="i-rise" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="3 18 9 13 13 16 21 6"/>
+      <polyline points="14 6 21 6 21 13"/>
+    </symbol>
   </svg>
   {% if nav != 'login' %}
   <header class="mast">
@@ -50,6 +58,7 @@
       {% if is_approved %}
       <a href="/ida?origem={{ active_origin|default('GIG') }}" class="{% if nav == 'ida' %}on{% endif %}">Só ida</a>
       <a href="/ida-volta?origem={{ active_origin|default('GIG') }}" class="{% if nav == 'round' %}on{% endif %}">Ida e volta</a>
+      <a href="/precos?origem={{ active_origin|default('GIG') }}" class="{% if nav == 'prices' %}on{% endif %}">Preços</a>
       <a href="/buscar?origem={{ active_origin|default('GIG') }}" class="{% if nav == 'search' %}on{% endif %}">Buscar</a>
       {% endif %}
       {% if is_admin %}

@@ -1,7 +1,7 @@
 {% if items %}
 <div class="flight-list">
   {% for item in items %}
-  <article class="pair-card{% if item.best_price %} best{% endif %}{% if item.excellent_price %} excellent{% endif %}">
+  <article class="pair-card{% if item.best_price %} best{% endif %}{% if item.excellent_price %} excellent{% endif %}{% if item.price_move and item.price_move.fell %} price-falling{% elif item.price_move and item.price_move.rose %} price-rising{% endif %}">
     <header class="pair-head">
       {% if item.image %}
       <img class="pair-photo" src="{{ item.image }}" alt="{{ item.city }}" loading="lazy">
@@ -62,7 +62,10 @@
             Atualizado {{ item.outbound.updated }}
           </p>
         </div>
-        <p class="pair-leg-miles">{{ item.outbound.miles|milhas }} <small>milhas</small></p>
+        <div class="pair-leg-miles">
+          <p>{{ item.outbound.miles|milhas }} <small>milhas</small></p>
+          {% with item=item.outbound, compact=true %}{% include "_price_drop.html" %}{% endwith %}
+        </div>
       </div>
 
       <div class="pair-plus" aria-hidden="true">
@@ -93,7 +96,10 @@
             Atualizado {{ item.inbound.updated }}
           </p>
         </div>
-        <p class="pair-leg-miles">{{ item.inbound.miles|milhas }} <small>milhas</small></p>
+        <div class="pair-leg-miles">
+          <p>{{ item.inbound.miles|milhas }} <small>milhas</small></p>
+          {% with item=item.inbound, compact=true %}{% include "_price_drop.html" %}{% endwith %}
+        </div>
       </div>
     </div>
 
@@ -103,6 +109,7 @@
         Ida + volta
       </p>
       <p class="flight-price">{{ item.miles|milhas }} <small>milhas</small></p>
+      {% include "_price_drop.html" %}
       <p class="pair-formula">{{ item.outbound.miles|milhas }} + {{ item.inbound.miles|milhas }}</p>
       <p class="updated">
         <svg class="icon" aria-hidden="true"><use href="#i-clock"></use></svg>

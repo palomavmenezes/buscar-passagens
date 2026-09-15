@@ -30,6 +30,7 @@ from app.browse import (
     filter_rows_budget,
     tag_deal_flags,
 )
+from app.prices import attach_price_moves, dashboard_payload
 from app.media import program_logo_url
 from app.auth import (
     current_user,
@@ -766,6 +767,33 @@ def search_page(request: Request):
     return templates.TemplateResponse("buscar.html", ctx)
 
 
+@app.get("/precos", response_class=HTMLResponse)
+def prices_page(request: Request, destino: str = "", data: str = "", cia: str = "", janela: str = "ano"):
+    if redirect := require_approved(request):
+        return redirect
+    origin = (request.query_params.get("origem") or request.query_params.get("origin") or DEFAULT_ORIGINS[0]).upper()
+    if origin not in DEFAULT_ORIGINS and origin not in CITY_AIRPORTS:
+        origin = DEFAULT_ORIGINS[0]
+    program = cia.lower() if cia.lower() in {"latam", "azul", "smiles"} else ""
+    dest = resolve_airport_query(destino)
+    board = dashboard_payload(origin, dest or None, data or None, program or None, janela or None)
+    return templates.TemplateResponse(
+        "precos.html",
+        page_context(
+            request,
+            nav="prices",
+            active_origin=origin,
+            board=board,
+            filters={
+                "destination": board["destination"],
+                "date": board["travel_date"],
+                "program": program,
+                "span": board["span"],
+            },
+        ),
+    )
+
+
 @app.get("/dinheiro")
 def money_page(request: Request):
     if redirect := require_approved(request):
@@ -804,6 +832,7 @@ def miles_page(
         )
     )
     rows = tag_best_prices([decorate(row) for row in raw_rows])
+    attach_price_moves(rows)
     stats = result_stats(
         price_type="miles",
         origin=origin_code or None,

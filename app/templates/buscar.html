@@ -39,7 +39,7 @@
   <h2>Todas as idas encontradas</h2>
   <div class="flight-list">
     {% for row in rows %}
-    <article class="flight-row{% if row.best_price %} best{% endif %}{% if row.excellent_price %} excellent{% endif %}">
+    <article class="flight-row{% if row.best_price %} best{% endif %}{% if row.excellent_price %} excellent{% endif %}{% if row.price_move and row.price_move.fell %} price-falling{% elif row.price_move and row.price_move.rose %} price-rising{% endif %}">
       <div>
         <div class="flight-route">
           <strong>{{ row.origin }}</strong>
@@ -59,6 +59,7 @@
       </div>
       <div class="flight-fare">
         <p class="flight-price">{{ row.miles|milhas }} <small>milhas</small></p>
+        {% with item=row %}{% include "_price_drop.html" %}{% endwith %}
         {% if row.excellent_price %}<span class="pill excellent">Preço excelente!</span>{% endif %}
         {% if row.best_price %}<span class="pill best">Melhor preço!</span>{% endif %}
         <p class="updated">Atualizado {{ row.updated }}</p>

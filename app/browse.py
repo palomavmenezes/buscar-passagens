@@ -5,7 +5,8 @@ from typing import Any
 from app.airports import decorate, related_airports
 from app.dates import duration_minutes, format_updated
 from app.db import query_results
-from app.miles_budget import EXCELLENT_MILES, miles_within_budget
+from app.miles_budget import EXCELLENT_MILES, miles_within_budget, plausible_miles
+from app.prices import attach_card_moves, attach_price_moves
 
 
 def _filters(
@@ -45,6 +46,18 @@ def _round_trip_filters(**filters: Any) -> tuple[dict[str, Any], dict[str, Any]]
 def _is_one_way(row: dict[str, Any]) -> bool:
     kind = (row.get("trip_kind") or "ida").lower()
     return kind in {"ida", "volta"}
+
+
+def _row_publishable(row: dict[str, Any]) -> bool:
+    return plausible_miles(
+        row.get("miles"),
+        str(row.get("origin") or ""),
+        str(row.get("destination") or ""),
+        str(row.get("cabin") or "economy"),
+        program=str(row.get("miles_program") or "latam"),
+        fare=row.get("fare"),
+        trip_kind=row.get("trip_kind"),
+    )
 
 
 def _duration_key(row: dict[str, Any]) -> int:
@@ -132,7 +145,9 @@ def cheapest_one_ways(
     outbound = [
         row
         for row in rows
-        if _is_one_way(row) and (row.get("origin") or "").upper() in home
+        if _is_one_way(row)
+        and _row_publishable(row)
+        and (row.get("origin") or "").upper() in home
         and (row.get("destination") or "").upper() not in home
     ]
     best = _best_by_key(outbound, lambda row: row.get("destination"))
@@ -140,7 +155,7 @@ def cheapest_one_ways(
     cards.sort(key=lambda item: (item.get("miles") or 10**12, item.get("city") or ""))
     national = _mark_best([card for card in cards if card.get("national")])
     international = _mark_best([card for card in cards if not card.get("national")])
-    return {"national": national, "international": international, "all": national + international}
+    return attach_card_moves({"national": national, "international": international, "all": national + international})
 
 
 def cheapest_round_trips(
@@ -166,6 +181,7 @@ def cheapest_round_trips(
         row
         for row in out_rows
         if _is_one_way(row)
+        and _row_publishable(row)
         and (row.get("origin") or "").upper() in home
         and (row.get("destination") or "").upper() not in home
     ]
@@ -173,6 +189,7 @@ def cheapest_round_trips(
         row
         for row in in_rows
         if _is_one_way(row)
+        and _row_publishable(row)
         and (row.get("destination") or "").upper() in home
         and (row.get("origin") or "").upper() not in home
     ]
@@ -206,7 +223,7 @@ def cheapest_round_trips(
     cards.sort(key=lambda item: item.get("miles") or 10**12)
     national = _mark_best([card for card in cards if card.get("national")])
     international = _mark_best([card for card in cards if not card.get("national")])
-    return {"national": national, "international": international, "all": national + international}
+    return attach_card_moves({"national": national, "international": international, "all": national + international})
 
 
 def _card_in_budget(
@@ -271,4 +288,4 @@ def browse_flights(
         trip_kind=trip_kind,
         **_filters(**filters),
     )
-    return [_with_meta(row) for row in rows]
+    return attach_price_moves([_with_meta(row) for row in rows if _row_publishable(row)])
