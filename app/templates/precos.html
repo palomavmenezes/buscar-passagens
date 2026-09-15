@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% block title %}Linha de preços · Viannas pelo Mundo{% endblock %}
+{% block body %}
+<section class="hero">
+  <p class="kicker">Histórico de milhas</p>
+  <h1>Preços no tempo</h1>
+  <p class="lede">Escolha um destino e acompanhe as coletas — de {{ board.span_label }} atrás até {{ board.span_label }} à frente. Cada busca nova entra no gráfico. O ícone de queda ou alta só aparece nos cards quando o preço mudou em relação à coleta anterior.</p>
+  {% with path='/precos' %}{% include "_origins.html" %}{% endwith %}
+</section>
+
+{% if board.destinations %}
+<form class="filters price-filters" method="get" action="/precos">
+  <input type="hidden" name="origem" value="{{ active_origin }}">
+  <input type="hidden" name="janela" value="{{ board.span }}">
+  <label>
+    Destino
+    <select name="destino">
+      {% for code, city in board.destinations %}
+      <option value="{{ code }}" {% if board.destination == code %}selected{% endif %}>{{ city }} ({{ code }})</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>
+    Data do voo
+    <select name="data">
+      <option value="">Todas as datas</option>
+      {% for day in board.travel_dates %}
+      <option value="{{ day }}" {% if board.travel_date == day %}selected{% endif %}>{{ day|voo }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>
+    Programa
+    <select name="cia">
+      <option value="" {% if not filters.program %}selected{% endif %}>Todos</option>
+      <option value="latam" {% if filters.program == 'latam' %}selected{% endif %}>LATAM Pass</option>
+      <option value="azul" {% if filters.program == 'azul' %}selected{% endif %}>TudoAzul</option>
+      <option value="smiles" {% if filters.program == 'smiles' %}selected{% endif %}>Smiles</option>
+    </select>
+  </label>
+  <button type="submit">Atualizar</button>
+</form>
+
+<nav class="span-chips" aria-label="Tamanho do gráfico">
+  {% for span in board.spans %}
+  <a class="{% if board.span == span.key %}on{% endif %}" href="/precos?origem={{ active_origin }}&destino={{ board.destination }}&janela={{ span.key }}{% if board.travel_date %}&data={{ board.travel_date }}{% endif %}{% if filters.program %}&cia={{ filters.program }}{% endif %}">{{ span.label }}</a>
+  {% endfor %}
+</nav>
+
+<section class="panel">
+  <div class="section-head">
+    <div>
+      <p class="kicker">{{ board.destination_city }} · {{ board.destination }}</p>
+      <h2>{{ board.window_start|voo }} → {{ board.window_end|voo }}</h2>
+    </div>
+  </div>
+  {% if board.chart.has_points %}
+  <svg class="price-chart" viewBox="0 0 {{ board.chart.width }} {{ board.chart.height }}" role="img" aria-label="Milhas de {{ board.destination_city }} no tempo">
+    {% for tick in board.chart.y_ticks %}
+    <line x1="{{ board.chart.pad_left }}" x2="{{ board.chart.width - board.chart.pad_right }}" y1="{{ tick.y }}" y2="{{ tick.y }}" class="chart-grid"></line>
+    <text x="8" y="{{ tick.y + 4 }}" class="chart-label">{{ tick.value|milhas }}</text>
+    {% endfor %}
+    {% if board.chart.today_x %}
+    <line x1="{{ board.chart.today_x }}" x2="{{ board.chart.today_x }}" y1="18" y2="{{ board.chart.height - 42 }}" class="chart-today"></line>
+    <text x="{{ board.chart.today_x + 6 }}" y="30" class="chart-label">hoje</text>
+    {% endif %}
+    {% for series in board.chart.series %}
+    {% if series.d %}
+    <path d="{{ series.d }}" class="chart-line {{ series.key }}"></path>
+    {% endif %}
+    {% for dot in series.dots %}
+    {% if series.key == 'voo' %}
+    <a href="/precos?origem={{ active_origin }}&destino={{ board.destination }}&data={{ dot.date }}&janela={{ board.span }}{% if filters.program %}&cia={{ filters.program }}{% endif %}">
+      <circle cx="{{ dot.cx }}" cy="{{ dot.cy }}" r="5" class="chart-dot {{ series.key }}{% if board.travel_date == dot.date %} on{% endif %}"></circle>
+      <title>Voo {{ dot.label }} · {{ dot.miles|milhas }} milhas</title>
+    </a>
+    {% else %}
+    <circle cx="{{ dot.cx }}" cy="{{ dot.cy }}" r="5" class="chart-dot {{ series.key }}">
+      <title>Coleta {{ dot.label }}{% if dot.flight %} · voo {{ dot.flight|voo }}{% endif %} · {{ dot.miles|milhas }} milhas</title>
+    </circle>
+    {% endif %}
+    {% endfor %}
+    {% endfor %}
+    {% for tick in board.chart.x_ticks %}
+    <text x="{{ tick.x }}" y="{{ board.chart.height - 12 }}" class="chart-label chart-x">{{ tick.label }}</text>
+    {% endfor %}
+  </svg>
+  <ul class="chart-legend">
+    <li><span class="swatch coleta"></span> Nas coletas (menor valor do destino naquele dia)</li>
+    <li><span class="swatch voo"></span> Por data do voo (último preço gravado)</li>
+  </ul>
+  <p class="muted chart-caption">Cada coleta nova (13/09, 14/09, daqui uma semana…) vira um ponto. O recorte vai de {{ board.span_label }} atrás até {{ board.span_label }} à frente.</p>
+  {% else %}
+  <p class="hint">Ainda não há coletas neste recorte para {{ board.destination_city }}.</p>
+  {% endif %}
+</section>
+
+<section class="price-windows">
+  <div class="panel">
+    <h2>Histórico das coletas</h2>
+    <p class="muted">Cada linha é um dia de voo. Só compara com a coleta anterior do mesmo dia — dezembro não mistura com janeiro.</p>
+    <table class="results compact-table">
+      <thead>
+        <tr><th>Data do voo</th><th>Coletas</th><th>Trecho</th><th>Versus a anterior</th></tr>
+      </thead>
+      <tbody>
+        {% for item in board.history %}
+        <tr>
+          <td>{{ item.flight|voo }}</td>
+          <td>
+            {% if item.prev_day %}{{ item.prev_day|voo }} → {{ item.day|voo }}{% else %}{{ item.day|voo }}{% endif %}
+          </td>
+          <td class="muted">{{ item.origin }} → {{ item.destination }}</td>
+          {% if item.prev is none %}
+          <td class="muted">{{ item.miles|milhas }} · primeira coleta deste dia</td>
+          {% else %}
+          <td class="{% if item.fell %}down{% elif item.rose %}up{% endif %}">
+            {% set drop_item = {"price_move": {"fell": item.fell, "rose": item.rose, "was": item.prev, "now": item.miles}} %}
+            {% with item=drop_item, compact=true %}{% include "_price_drop.html" %}{% endwith %}
+          </td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="muted">Ainda não há coletas neste recorte.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="panel">
+    <h2>Mudou na última coleta</h2>
+    <p class="muted">Só entra o voo que foi coletado nos dois dias, na mesma data.</p>
+    {% if board.moves %}
+    <table class="results compact-table">
+      <thead>
+        <tr><th>Destino</th><th>Data do voo</th><th>Coletas</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for row in board.moves %}
+        <tr>
+          <td><strong>{{ row.city }}</strong> <span class="muted">{{ row.origin }} → {{ row.destination }}</span></td>
+          <td>{{ row.flight|voo }}</td>
+          <td>{{ row.was_collected|voo }} → {{ row.now_collected|voo }}</td>
+          <td class="{% if row.fell %}down{% elif row.rose %}up{% endif %}">
+            {% set drop_item = {"price_move": row} %}
+            {% with item=drop_item, compact=true %}{% include "_price_drop.html" %}{% endwith %}
+            <a href="/precos?origem={{ active_origin }}&destino={{ row.destination }}&data={{ row.flight }}&janela={{ board.span }}">Ver</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="hint">Nenhum voo foi coletado de novo na mesma data. Quando a próxima busca repetir o mesmo dia, o comparativo aparece aqui.</p>
+    {% endif %}
+  </div>
+</section>
+
+<section class="panel">
+  <div class="section-head">
+    <div>
+      <p class="kicker">Ida + volta</p>
+      <h2>Total do destino na última coleta</h2>
+    </div>
+  </div>
+  <p class="muted">Soma só quando a mesma data de ida e a mesma data de volta existirem nas duas coletas.</p>
+  {% if board.round_moves %}
+  <table class="results compact-table">
+    <thead>
+      <tr>
+        <th>Destino</th>
+        <th>Coletas</th>
+        <th>Ida</th>
+        <th>Volta</th>
+        <th>Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in board.round_moves %}
+      <tr>
+        <td><strong>{{ row.city }}</strong> <span class="muted">{{ row.origin }} ⇄ {{ row.destination }}</span></td>
+        <td>{{ row.was_collected|voo }} → {{ row.now_collected|voo }}</td>
+        <td>
+          {{ row.now_flight|voo }}
+          <div class="muted">{{ row.was_out|milhas }} → {{ row.now_out|milhas }}</div>
+        </td>
+        <td>
+          {{ row.now_return|voo }}
+          <div class="muted">{{ row.was_in|milhas }} → {{ row.now_in|milhas }}</div>
+        </td>
+        <td class="{% if row.fell %}down{% elif row.rose %}up{% endif %}">
+          {% set drop_item = {"price_move": row} %}
+          {% with item=drop_item, compact=true %}{% include "_price_drop.html" %}{% endwith %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="hint">Ainda não repetimos a mesma data de ida e a mesma data de volta em duas coletas. Sem isso, o total não compara dezembro com janeiro.</p>
+  {% endif %}
+</section>
+{% else %}
+<p class="hint">Ainda não há histórico de milhas para esta origem. Depois da primeira coleta, o gráfico aparece aqui.</p>
+{% endif %}
+{% endblock %}

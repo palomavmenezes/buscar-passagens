@@ -2,7 +2,7 @@
 <div class="gallery">
   {% for item in items %}
   {% set show_fare = (item.national and reveal_national_fares) or (not item.national and reveal_international_fares) %}
-  <article class="place-card{% if item.best_price and is_approved %} best-price{% endif %}{% if item.excellent_price and is_approved %} excellent-price{% endif %}{% if not is_approved %} teaser{% endif %}">
+  <article class="place-card{% if item.best_price and is_approved %} best-price{% endif %}{% if item.excellent_price and is_approved %} excellent-price{% endif %}{% if item.price_move and item.price_move.fell and is_approved %} price-falling{% elif item.price_move and item.price_move.rose and is_approved %} price-rising{% endif %}{% if not is_approved %} teaser{% endif %}">
     <a class="place-hit" href="{% if is_approved %}/milhas?origem={{ item.origin }}&origin={{ item.origin }}&destination={{ item.destination }}#lista{% elif current_user %}/{% else %}/login?next=/milhas?origem={{ item.origin }}%26origin={{ item.origin }}%26destination={{ item.destination }}{% endif %}" aria-label="{% if is_approved %}Ver passagens para {{ item.city }}{% else %}{{ item.city }}{% endif %}"></a>
     <img src="{{ item.image }}" alt="{{ item.city }}" loading="lazy"
          {% if not item.image_local %}onerror="this.onerror=null;this.src='https://loremflickr.com/960/620/{{ item.city }},travel';"{% endif %}>
@@ -16,6 +16,7 @@
           {{ item.miles|milhas }} milhas
           {% if item.excellent_price and is_approved %}<span class="pill excellent">Preço excelente!</span>{% endif %}
           {% if item.best_price and is_approved %}<span class="pill best">Melhor preço!</span>{% endif %}
+          {% if is_approved %}{% with item=item, compact=true %}{% include "_price_drop.html" %}{% endwith %}{% endif %}
           <small>
             {% if item.logo %}<img class="cia-logo" src="{{ item.logo }}" alt=""> {% endif %}{{ program_labels.get(item.miles_program, item.miles_program or '') }}
             {% if item.fare and is_approved %} · {{ item.fare }}{% endif %}

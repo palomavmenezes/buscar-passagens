@@ -106,7 +106,7 @@
     </thead>
     <tbody>
       {% for row in rows %}
-      <tr class="{% if row.best_price %}best{% endif %}{% if row.excellent_price %} excellent{% endif %}" data-kind="{{ row.trip_kind or 'ida' }}" data-miles="{{ row.miles or 0 }}" data-route="{{ row.origin }} → {{ row.destination }}" data-when="{{ row.departure_date }} {{ row.departure_time or '' }}">
+      <tr class="{% if row.best_price %}best{% endif %}{% if row.excellent_price %} excellent{% endif %}{% if row.price_move and row.price_move.fell %} price-falling{% elif row.price_move and row.price_move.rose %} price-rising{% endif %}" data-kind="{{ row.trip_kind or 'ida' }}" data-miles="{{ row.miles or 0 }}" data-route="{{ row.origin }} → {{ row.destination }}" data-when="{{ row.departure_date }} {{ row.departure_time or '' }}">
         <td data-label="Rota">
           <strong>{{ row.origin }} → {{ row.destination }}</strong>
           <div class="muted">{{ row.city if row.city is defined else '' }}</div>
@@ -155,6 +155,7 @@
         </td>
         <td data-label="Milhas">
           <strong>{{ row.miles|milhas }}</strong>
+          {% with item=row, compact=true %}{% include "_price_drop.html" %}{% endwith %}
           {% if row.taxes %}
             <div class="muted">taxas {{ row.taxes|brl }}</div>
           {% endif %}
