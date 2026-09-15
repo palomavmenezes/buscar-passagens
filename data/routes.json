@@ -1,6 +1,11 @@
 {
-  "origins": ["GIG"],
-  "date_offsets": [30, 90],
+  "origins": [
+    "GIG"
+  ],
+  "date_offsets": [
+    30,
+    90
+  ],
   "invert": true,
   "outbound_only": true,
   "one_offset_per_run": true,
@@ -11,16 +16,100 @@
       "label": "Nordeste",
       "kind": "national",
       "airports": [
-        {"iata": "REC", "city": "Recife", "programs": ["latam", "azul", "smiles"]},
-        {"iata": "SSA", "city": "Salvador", "programs": ["latam", "azul", "smiles"]},
-        {"iata": "FOR", "city": "Fortaleza", "programs": ["latam", "azul", "smiles"]},
-        {"iata": "NAT", "city": "Natal", "programs": ["latam", "azul", "smiles"]},
-        {"iata": "MCZ", "city": "Maceió", "programs": ["latam", "azul", "smiles"]},
-        {"iata": "AJU", "city": "Aracaju", "programs": ["latam", "azul", "smiles"]},
-        {"iata": "JPA", "city": "João Pessoa", "programs": ["latam", "azul", "smiles"]},
-        {"iata": "THE", "city": "Teresina", "programs": ["azul"]},
-        {"iata": "SLZ", "city": "São Luís", "programs": ["latam", "azul", "smiles"]},
-        {"iata": "BPS", "city": "Porto Seguro", "programs": ["latam", "azul", "smiles"]}
+        {
+          "iata": "REC",
+          "city": "Recife",
+          "programs": [
+            "latam",
+            "azul",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "SSA",
+          "city": "Salvador",
+          "programs": [
+            "latam",
+            "azul",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "FOR",
+          "city": "Fortaleza",
+          "programs": [
+            "latam",
+            "azul",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "NAT",
+          "city": "Natal",
+          "programs": [
+            "latam",
+            "azul"
+          ]
+        },
+        {
+          "iata": "MCZ",
+          "city": "Maceió",
+          "programs": [
+            "latam",
+            "azul",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "AJU",
+          "city": "Aracaju",
+          "programs": [
+            "latam",
+            "azul",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "JPA",
+          "city": "João Pessoa",
+          "programs": [
+            "latam",
+            "azul",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "THE",
+          "city": "Teresina",
+          "programs": [
+            "azul"
+          ]
+        },
+        {
+          "iata": "SLZ",
+          "city": "São Luís",
+          "programs": [
+            "latam",
+            "azul",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "BPS",
+          "city": "Porto Seguro",
+          "programs": [
+            "latam",
+            "azul",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "FEN",
+          "city": "Fernando de Noronha",
+          "programs": [
+            "smiles"
+          ]
+        }
       ]
     },
     {
@@ -28,13 +117,59 @@
       "label": "Norte",
       "kind": "national",
       "airports": [
-        {"iata": "MAO", "city": "Manaus", "programs": ["latam", "azul", "smiles"]},
-        {"iata": "BEL", "city": "Belém", "programs": ["latam", "azul", "smiles"]},
-        {"iata": "PVH", "city": "Porto Velho", "programs": ["azul"]},
-        {"iata": "RBR", "city": "Rio Branco", "programs": ["azul"]},
-        {"iata": "BVB", "city": "Boa Vista", "programs": ["azul"]},
-        {"iata": "MCP", "city": "Macapá", "programs": ["azul"]},
-        {"iata": "STM", "city": "Santarém", "programs": ["azul"]}
+        {
+          "iata": "MAO",
+          "city": "Manaus",
+          "programs": [
+            "latam",
+            "azul",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "BEL",
+          "city": "Belém",
+          "programs": [
+            "latam",
+            "azul",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "PVH",
+          "city": "Porto Velho",
+          "programs": [
+            "azul"
+          ]
+        },
+        {
+          "iata": "RBR",
+          "city": "Rio Branco",
+          "programs": [
+            "azul"
+          ]
+        },
+        {
+          "iata": "BVB",
+          "city": "Boa Vista",
+          "programs": [
+            "azul"
+          ]
+        },
+        {
+          "iata": "MCP",
+          "city": "Macapá",
+          "programs": [
+            "azul"
+          ]
+        },
+        {
+          "iata": "STM",
+          "city": "Santarém",
+          "programs": [
+            "azul"
+          ]
+        }
       ]
     },
     {
@@ -42,10 +177,44 @@
       "label": "Centro-Oeste",
       "kind": "national",
       "airports": [
-        {"iata": "BSB", "city": "Brasília", "programs": ["latam", "azul", "smiles"]},
-        {"iata": "CGB", "city": "Cuiabá", "programs": ["azul"]},
-        {"iata": "GYN", "city": "Goiânia", "programs": ["azul"]},
-        {"iata": "CGR", "city": "Campo Grande", "programs": ["azul"]}
+        {
+          "iata": "BSB",
+          "city": "Brasília",
+          "programs": [
+            "latam",
+            "azul",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "CGB",
+          "city": "Cuiabá",
+          "programs": [
+            "azul"
+          ]
+        },
+        {
+          "iata": "GYN",
+          "city": "Goiânia",
+          "programs": [
+            "azul",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "CGR",
+          "city": "Campo Grande",
+          "programs": [
+            "azul"
+          ]
+        },
+        {
+          "iata": "BYO",
+          "city": "Bonito",
+          "programs": [
+            "smiles"
+          ]
+        }
       ]
     },
     {
@@ -53,11 +222,65 @@
       "label": "Sudeste",
       "kind": "national",
       "airports": [
-        {"iata": "VCP", "city": "Campinas (Viracopos)", "programs": ["latam", "azul", "smiles"]},
-        {"iata": "CNF", "city": "Belo Horizonte (Confins)", "programs": ["latam", "azul", "smiles"]},
-        {"iata": "CGH", "city": "São Paulo (Congonhas)", "programs": ["latam", "azul", "smiles"]},
-        {"iata": "GRU", "city": "São Paulo (Guarulhos)", "programs": ["latam", "azul", "smiles"]},
-        {"iata": "VIX", "city": "Vitória", "programs": ["latam", "azul", "smiles"]}
+        {
+          "iata": "VCP",
+          "city": "Campinas (Viracopos)",
+          "programs": [
+            "latam",
+            "azul",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "CNF",
+          "city": "Belo Horizonte (Confins)",
+          "programs": [
+            "latam",
+            "azul",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "CGH",
+          "city": "São Paulo (Congonhas)",
+          "programs": [
+            "latam",
+            "azul",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "GRU",
+          "city": "São Paulo (Guarulhos)",
+          "programs": [
+            "latam",
+            "azul",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "VIX",
+          "city": "Vitória",
+          "programs": [
+            "latam",
+            "azul",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "GIG",
+          "city": "Rio de Janeiro (Galeão)",
+          "programs": [
+            "smiles"
+          ]
+        },
+        {
+          "iata": "SDU",
+          "city": "Rio de Janeiro (Santos Dumont)",
+          "programs": [
+            "smiles"
+          ]
+        }
       ]
     },
     {
@@ -65,11 +288,59 @@
       "label": "Sul",
       "kind": "national",
       "airports": [
-        {"iata": "POA", "city": "Porto Alegre", "programs": ["latam", "azul", "smiles"]},
-        {"iata": "CWB", "city": "Curitiba", "programs": ["latam", "azul", "smiles"]},
-        {"iata": "FLN", "city": "Florianópolis", "programs": ["latam", "azul", "smiles"]},
-        {"iata": "NVT", "city": "Navegantes", "programs": ["latam", "azul", "smiles"]},
-        {"iata": "IGU", "city": "Foz do Iguaçu", "programs": ["latam", "azul", "smiles"]}
+        {
+          "iata": "POA",
+          "city": "Porto Alegre",
+          "programs": [
+            "latam",
+            "azul",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "CWB",
+          "city": "Curitiba",
+          "programs": [
+            "latam",
+            "azul",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "FLN",
+          "city": "Florianópolis",
+          "programs": [
+            "latam",
+            "azul",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "NVT",
+          "city": "Navegantes",
+          "programs": [
+            "latam",
+            "azul",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "IGU",
+          "city": "Foz do Iguaçu",
+          "programs": [
+            "latam",
+            "azul",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "CXJ",
+          "city": "Caxias do Sul",
+          "programs": [
+            "latam",
+            "smiles"
+          ]
+        }
       ]
     },
     {
@@ -77,19 +348,119 @@
       "label": "Europa",
       "kind": "international",
       "airports": [
-        {"iata": "LIS", "city": "Lisboa", "programs": ["latam", "azul", "smiles"]},
-        {"iata": "OPO", "city": "Porto", "programs": ["latam", "azul", "smiles"]},
-        {"iata": "MAD", "city": "Madrid", "programs": ["latam", "azul", "smiles"]},
-        {"iata": "FCO", "city": "Roma", "programs": ["latam", "smiles"]},
-        {"iata": "MXP", "city": "Milão", "programs": ["latam", "smiles"]},
-        {"iata": "BCN", "city": "Barcelona", "programs": ["latam", "smiles"]},
-        {"iata": "FRA", "city": "Frankfurt", "programs": ["latam", "smiles"]},
-        {"iata": "BER", "city": "Berlim", "programs": ["latam", "smiles"]},
-        {"iata": "MUC", "city": "Munique", "programs": ["latam", "smiles"]},
-        {"iata": "CDG", "city": "Paris", "programs": ["latam", "smiles"]},
-        {"iata": "LHR", "city": "Londres", "programs": ["latam", "smiles"]},
-        {"iata": "BRU", "city": "Bruxelas", "programs": ["latam", "smiles"]},
-        {"iata": "AMS", "city": "Amsterdã", "programs": ["latam", "smiles"]}
+        {
+          "iata": "LIS",
+          "city": "Lisboa",
+          "programs": [
+            "latam",
+            "azul",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "OPO",
+          "city": "Porto",
+          "programs": [
+            "latam",
+            "azul"
+          ]
+        },
+        {
+          "iata": "MAD",
+          "city": "Madrid",
+          "programs": [
+            "latam",
+            "azul",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "FCO",
+          "city": "Roma",
+          "programs": [
+            "latam"
+          ]
+        },
+        {
+          "iata": "MXP",
+          "city": "Milão",
+          "programs": [
+            "latam"
+          ]
+        },
+        {
+          "iata": "BCN",
+          "city": "Barcelona",
+          "programs": [
+            "latam",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "FRA",
+          "city": "Frankfurt",
+          "programs": [
+            "latam"
+          ]
+        },
+        {
+          "iata": "BER",
+          "city": "Berlim",
+          "programs": [
+            "latam"
+          ]
+        },
+        {
+          "iata": "MUC",
+          "city": "Munique",
+          "programs": [
+            "latam"
+          ]
+        },
+        {
+          "iata": "CDG",
+          "city": "Paris",
+          "programs": [
+            "latam",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "LHR",
+          "city": "Londres",
+          "programs": [
+            "latam"
+          ]
+        },
+        {
+          "iata": "BRU",
+          "city": "Bruxelas",
+          "programs": [
+            "latam"
+          ]
+        },
+        {
+          "iata": "AMS",
+          "city": "Amsterdã",
+          "programs": [
+            "latam",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "ORY",
+          "city": "Paris (Orly)",
+          "programs": [
+            "smiles"
+          ]
+        },
+        {
+          "iata": "IST",
+          "city": "Istambul",
+          "programs": [
+            "smiles"
+          ]
+        }
       ]
     },
     {
@@ -97,12 +468,68 @@
       "label": "América do Norte",
       "kind": "international",
       "airports": [
-        {"iata": "FLL", "city": "Fort Lauderdale", "programs": ["azul"]},
-        {"iata": "MCO", "city": "Orlando", "programs": ["latam", "azul", "smiles"]},
-        {"iata": "MIA", "city": "Miami", "programs": ["latam", "smiles"]},
-        {"iata": "JFK", "city": "Nova Iorque", "programs": ["latam", "smiles"]},
-        {"iata": "LAX", "city": "Los Angeles", "programs": ["latam", "smiles"]},
-        {"iata": "MEX", "city": "Cidade do México", "programs": ["latam", "smiles"]}
+        {
+          "iata": "FLL",
+          "city": "Fort Lauderdale",
+          "programs": [
+            "azul"
+          ]
+        },
+        {
+          "iata": "MCO",
+          "city": "Orlando",
+          "programs": [
+            "latam",
+            "azul",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "MIA",
+          "city": "Miami",
+          "programs": [
+            "latam",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "JFK",
+          "city": "Nova Iorque",
+          "programs": [
+            "latam",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "LAX",
+          "city": "Los Angeles",
+          "programs": [
+            "latam",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "MEX",
+          "city": "Cidade do México",
+          "programs": [
+            "latam",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "YYZ",
+          "city": "Toronto",
+          "programs": [
+            "smiles"
+          ]
+        },
+        {
+          "iata": "YVR",
+          "city": "Vancouver",
+          "programs": [
+            "smiles"
+          ]
+        }
       ]
     },
     {
@@ -110,18 +537,106 @@
       "label": "América do Sul",
       "kind": "international",
       "airports": [
-        {"iata": "MVD", "city": "Montevidéu", "programs": ["latam", "azul", "smiles"]},
-        {"iata": "PDP", "city": "Punta del Este", "programs": ["azul"]},
-        {"iata": "ASU", "city": "Assunção", "programs": ["latam", "azul", "smiles"]},
-        {"iata": "BRC", "city": "Bariloche", "programs": ["latam", "azul", "smiles"]},
-        {"iata": "MDZ", "city": "Mendoza", "programs": ["azul"]},
-        {"iata": "SCL", "city": "Santiago", "programs": ["latam", "smiles"]},
-        {"iata": "EZE", "city": "Buenos Aires", "programs": ["latam", "smiles"]},
-        {"iata": "COR", "city": "Córdoba", "programs": ["latam", "smiles"]},
-        {"iata": "LIM", "city": "Lima", "programs": ["latam", "smiles"]},
-        {"iata": "CUZ", "city": "Cusco", "programs": ["latam", "smiles"]},
-        {"iata": "BOG", "city": "Bogotá", "programs": ["latam", "smiles"]},
-        {"iata": "CTG", "city": "Cartagena", "programs": ["latam", "smiles"]}
+        {
+          "iata": "MVD",
+          "city": "Montevidéu",
+          "programs": [
+            "latam",
+            "azul",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "PDP",
+          "city": "Punta del Este",
+          "programs": [
+            "azul",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "ASU",
+          "city": "Assunção",
+          "programs": [
+            "latam",
+            "azul"
+          ]
+        },
+        {
+          "iata": "BRC",
+          "city": "Bariloche",
+          "programs": [
+            "latam",
+            "azul"
+          ]
+        },
+        {
+          "iata": "MDZ",
+          "city": "Mendoza",
+          "programs": [
+            "azul"
+          ]
+        },
+        {
+          "iata": "SCL",
+          "city": "Santiago",
+          "programs": [
+            "latam",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "EZE",
+          "city": "Buenos Aires",
+          "programs": [
+            "latam"
+          ]
+        },
+        {
+          "iata": "COR",
+          "city": "Córdoba",
+          "programs": [
+            "latam"
+          ]
+        },
+        {
+          "iata": "LIM",
+          "city": "Lima",
+          "programs": [
+            "latam",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "CUZ",
+          "city": "Cusco",
+          "programs": [
+            "latam"
+          ]
+        },
+        {
+          "iata": "BOG",
+          "city": "Bogotá",
+          "programs": [
+            "latam",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "CTG",
+          "city": "Cartagena",
+          "programs": [
+            "latam",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "MDE",
+          "city": "Medellín",
+          "programs": [
+            "smiles"
+          ]
+        }
       ]
     },
     {
@@ -129,9 +644,35 @@
       "label": "Caribe",
       "kind": "international",
       "airports": [
-        {"iata": "CUR", "city": "Curaçao", "programs": ["azul"]},
-        {"iata": "CUN", "city": "Cancún", "programs": ["latam", "smiles"]},
-        {"iata": "PUJ", "city": "Punta Cana", "programs": ["latam", "smiles"]}
+        {
+          "iata": "CUR",
+          "city": "Curaçao",
+          "programs": [
+            "azul"
+          ]
+        },
+        {
+          "iata": "CUN",
+          "city": "Cancún",
+          "programs": [
+            "latam",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "PUJ",
+          "city": "Punta Cana",
+          "programs": [
+            "latam"
+          ]
+        },
+        {
+          "iata": "PTY",
+          "city": "Cidade do Panamá",
+          "programs": [
+            "smiles"
+          ]
+        }
       ]
     },
     {
@@ -139,9 +680,27 @@
       "label": "Ásia",
       "kind": "international",
       "airports": [
-        {"iata": "NRT", "city": "Tóquio", "programs": ["latam", "smiles"]},
-        {"iata": "PEK", "city": "Pequim", "programs": ["latam", "smiles"]},
-        {"iata": "PVG", "city": "Xangai", "programs": ["latam", "smiles"]}
+        {
+          "iata": "NRT",
+          "city": "Tóquio",
+          "programs": [
+            "latam"
+          ]
+        },
+        {
+          "iata": "PEK",
+          "city": "Pequim",
+          "programs": [
+            "latam"
+          ]
+        },
+        {
+          "iata": "PVG",
+          "city": "Xangai",
+          "programs": [
+            "latam"
+          ]
+        }
       ]
     },
     {
@@ -149,8 +708,22 @@
       "label": "Oriente Médio",
       "kind": "international",
       "airports": [
-        {"iata": "DXB", "city": "Dubai", "programs": ["latam", "smiles"]},
-        {"iata": "DOH", "city": "Doha", "programs": ["latam", "smiles"]}
+        {
+          "iata": "DXB",
+          "city": "Dubai",
+          "programs": [
+            "latam",
+            "smiles"
+          ]
+        },
+        {
+          "iata": "DOH",
+          "city": "Doha",
+          "programs": [
+            "latam",
+            "smiles"
+          ]
+        }
       ]
     },
     {
@@ -158,8 +731,20 @@
       "label": "África",
       "kind": "international",
       "airports": [
-        {"iata": "JNB", "city": "Joanesburgo", "programs": ["latam", "smiles"]},
-        {"iata": "CPT", "city": "Cidade do Cabo", "programs": ["latam", "smiles"]}
+        {
+          "iata": "JNB",
+          "city": "Joanesburgo",
+          "programs": [
+            "latam"
+          ]
+        },
+        {
+          "iata": "CPT",
+          "city": "Cidade do Cabo",
+          "programs": [
+            "latam"
+          ]
+        }
       ]
     }
   ]
