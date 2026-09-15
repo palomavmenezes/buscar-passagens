@@ -13,6 +13,8 @@ data/azul-chrome-profile/
 data/azul-chrome-guest/
 data/azul-chrome-guest*/
 data/smiles-chrome-profile/
+data/smiles-chrome-guest/
+data/smiles-chrome-guest*/
 data/playwright-browsers/
 .DS_Store
 node_modules/

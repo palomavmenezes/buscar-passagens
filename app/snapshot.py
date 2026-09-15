@@ -5,43 +5,86 @@ import json
 from pathlib import Path
 from typing import Any
 
-from app.airports import city_name, expand_city_airports, normalize_city_token
+from app.airports import CITY_AIRPORTS, city_name, expand_city_airports, normalize_city_token, related_airports, same_city
 from app.catalog import catalog_airports, collapse_rio_jobs, load_catalog, requested_jobs, snapshot_queue
 from app.collectors.azul import azul_session_ready, collect_azul_jobs
-from app.collectors.latam import collect_latam_jobs, latam_session_ready, plausible_miles
+from app.collectors.latam import collect_latam_jobs, latam_session_ready
+from app.collectors.smiles import collect_smiles_jobs, smiles_session_ready
 from app.config import HARVEST_DIR, LATAM_MAX_PER_RUN, harvest_route_path
 from app.db import create_search, init_db, insert_results, now_iso, query_results, replace_miles_route, update_search
+from app.miles_budget import plausible_miles, smiles_keep_offer
 from app.providers.base import Offer
+
+
+def _job_identity(job: dict[str, Any]) -> tuple[str, str, str, str]:
+    return (
+        job["origin"],
+        job["destination"],
+        job["day"],
+        job.get("return_day") or job.get("return_date") or "",
+    )
+
+
+def _payload_covers_job(payload: dict[str, Any], job: dict[str, Any]) -> bool:
+    status = payload.get("status")
+    offers = payload.get("offers") or []
+    if status == "empty":
+        pass
+    elif status not in {200, "ok"} or not offers:
+        return False
+    saved = payload.get("job") or {}
+    if str(saved.get("day") or job["day"]) != str(job["day"]):
+        return False
+    job_back = str(job.get("return_day") or job.get("return_date") or "")
+    saved_back = str(saved.get("return_day") or saved.get("return_date") or "")
+    if job_back and saved_back and saved_back != job_back:
+        return False
+    saved_origin = str(saved.get("origin") or "")
+    saved_dest = str(saved.get("destination") or "")
+    if saved_origin and not same_city(job["origin"], saved_origin):
+        return False
+    if saved_dest and not same_city(job["destination"], saved_dest):
+        return False
+    job_search = (job.get("search_origin") or job["origin"]).upper()
+    saved_search = str(saved.get("search_origin") or "").upper()
+    if job_search in CITY_AIRPORTS:
+        if saved_search:
+            return saved_search == job_search
+        return str(saved.get("origin") or "").upper() == job_search
+    return True
 
 
 def pending_jobs(jobs: list[dict[str, Any]], folder: Path) -> list[dict[str, Any]]:
     done: set[tuple[str, str, str, str]] = set()
     for job in jobs:
-        path = harvest_route_path(folder, job["origin"], job["destination"], job["day"], job=job)
-        if not path.exists():
-            continue
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        status = payload.get("status")
-        offers = payload.get("offers") or []
-        saved = payload.get("job") or {}
-        key = (
-            saved.get("origin") or job["origin"],
-            saved.get("destination") or job["destination"],
-            saved.get("day") or job["day"],
-            saved.get("return_day") or saved.get("return_date") or job.get("return_day") or job.get("return_date") or "",
-        )
-        if status in {200, "ok"} and offers:
-            done.add(key)
-        elif status == "empty":
-            done.add(key)
-    return [
-        job
-        for job in jobs
-        if (job["origin"], job["destination"], job["day"], job.get("return_day") or job.get("return_date") or "") not in done
-    ]
+        origins = related_airports(job["origin"]) or [job["origin"]]
+        dests = related_airports(job["destination"]) or [job["destination"]]
+        covered = False
+        for origin in origins:
+            for dest in dests:
+                if origin.upper() == dest.upper():
+                    continue
+                path = harvest_route_path(
+                    folder,
+                    origin,
+                    dest,
+                    job["day"],
+                    job={**job, "origin": origin, "destination": dest},
+                )
+                if not path.exists():
+                    continue
+                try:
+                    payload = json.loads(path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    continue
+                if _payload_covers_job(payload, job):
+                    covered = True
+                    break
+            if covered:
+                break
+        if covered:
+            done.add(_job_identity(job))
+    return [job for job in jobs if _job_identity(job) not in done]
 
 
 def offer_record(offer: Offer, extra: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -184,7 +227,7 @@ async def run_snapshot(
             "date_end": max(job["day"] for job in planned),
             "stay_nights": 7,
             "cabin": "economy",
-            "include_cash": False,
+            "include_cash": any(name == "smiles" for name in (programs or [])),
             "include_miles": True,
         }
     )
@@ -192,12 +235,13 @@ async def run_snapshot(
     update_search(search_id, status="running", progress="Coleta do pedido")
 
     if "miles" in kinds:
-        wanted = {name.lower() for name in (programs or ["latam"]) if name.lower() in {"latam", "azul"}}
+        wanted = {name.lower() for name in (programs or ["latam"]) if name.lower() in {"latam", "azul", "smiles"}}
         if not wanted:
             wanted = {"latam"}
         airlines = [
             ("latam", "LATAM Pass", latam_session_ready, collect_latam_jobs),
             ("azul", "Azul", azul_session_ready, collect_azul_jobs),
+            ("smiles", "GOL/Smiles", smiles_session_ready, collect_smiles_jobs),
         ]
         limit = max_per_run or int(catalog.get("max_per_run") or LATAM_MAX_PER_RUN)
         for program, title, ready, collect in airlines:
@@ -218,7 +262,7 @@ async def run_snapshot(
                 batch = [{**job, "program": program} for job in batch]
                 gap_note = (
                     "20-60s aleatórios na tela de resultados entre cada um"
-                    if program == "azul"
+                    if program in {"azul", "smiles"}
                     else "2-3 min na tela de resultados entre cada um"
                 )
                 print(f"Leva {title} {label}: {len(batch)} trechos; {gap_note}.", flush=True)
@@ -233,14 +277,23 @@ async def run_snapshot(
                     offers = [
                         offer
                         for offer in (item.get("offers") or [])
-                        if plausible_miles(
-                            offer.miles,
-                            offer.origin,
-                            offer.destination,
-                            offer.cabin,
-                            program=job.get("program") or offer.miles_program or "latam",
-                            fare=offer.fare,
-                            trip_kind=offer.trip_kind,
+                        if (
+                            smiles_keep_offer(
+                                offer.miles,
+                                offer.price_cash,
+                                offer.origin,
+                                offer.destination,
+                            )
+                            if (job.get("program") or offer.miles_program or "") == "smiles"
+                            else plausible_miles(
+                                offer.miles,
+                                offer.origin,
+                                offer.destination,
+                                offer.cabin,
+                                program=job.get("program") or offer.miles_program or "latam",
+                                fare=offer.fare,
+                                trip_kind=offer.trip_kind,
+                            )
                         )
                     ]
                     complete = bool(offers) and status in {200, "ok"}
@@ -314,15 +367,20 @@ async def run_snapshot(
 
 def summarize_jobs(jobs: list[dict[str, Any]]) -> dict[str, Any]:
     lista = [
-        f"{job['origin']}->{job['destination']} {job['day']} ({job.get('leg') or 'ida'})"
+        (
+            f"{job['origin']}->{job['destination']} {job['day']}"
+            + (f" / volta {job.get('return_day')}" if job.get("return_day") else f" ({job.get('leg') or 'ida'})")
+        )
         for job in jobs
     ]
+    paired = [job for job in jobs if job.get("return_day")]
     payload: dict[str, Any] = {
         "trechos": len(jobs),
         "destinos": sorted({job["destination"] if job.get("leg") != "volta" else job["origin"] for job in jobs}),
-        "datas": sorted({job["day"] for job in jobs}),
+        "datas": sorted({job["day"] for job in jobs} | {str(job.get("return_day")) for job in paired}),
         "idas": sum(1 for job in jobs if job.get("leg") != "volta"),
-        "voltas": sum(1 for job in jobs if job.get("leg") == "volta"),
+        "voltas": sum(1 for job in jobs if job.get("leg") == "volta" or job.get("return_day")),
+        "buscas_ida_volta": len(paired),
     }
     if len(lista) <= 40:
         payload["lista"] = lista
@@ -362,7 +420,7 @@ def main(argv: list[str] | None = None) -> int:
     ask.add_argument("--ate", dest="date_to", help="Última data de ida AAAA-MM-DD (máx. 90 dias)")
     ask.add_argument("--volta-de", dest="return_from", help="Primeira data de volta/ida inversa AAAA-MM-DD")
     ask.add_argument("--volta-ate", dest="return_to", help="Última data de volta/ida inversa AAAA-MM-DD")
-    ask.add_argument("--programas", dest="programs", help="latam, azul ou ambos separados por vírgula")
+    ask.add_argument("--programas", dest="programs", help="latam, azul, smiles ou vários separados por vírgula")
     ask.add_argument(
         "--continuar",
         action="store_true",

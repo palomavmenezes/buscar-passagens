@@ -9,9 +9,9 @@ from app.airports import related_airports
 from app.config import DB_PATH
 
 CIA_MILES_FILTER = (
-    "(price_type != 'miles' OR IFNULL(miles_program, '') IN ('azul', 'latam'))"
-    " AND IFNULL(source, '') IN ('latampass', 'tudoazul', 'latam', 'azul')"
-    " AND (price_type != 'miles' OR IFNULL(miles, 0) >= 5000)"
+    "(price_type != 'miles' OR IFNULL(miles_program, '') IN ('azul', 'latam', 'smiles'))"
+    " AND IFNULL(source, '') IN ('latampass', 'tudoazul', 'latam', 'azul', 'smiles')"
+    " AND (price_type != 'miles' OR IFNULL(miles, 0) >= 5000 OR price_type = 'cash')"
 )
 
 SCHEMA = """
@@ -70,6 +70,19 @@ CREATE INDEX IF NOT EXISTS idx_results_price ON results(price_cash);
 CREATE INDEX IF NOT EXISTS idx_results_miles ON results(miles);
 CREATE INDEX IF NOT EXISTS idx_results_route ON results(origin, destination);
 
+CREATE TABLE IF NOT EXISTS price_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    origin TEXT NOT NULL,
+    destination TEXT NOT NULL,
+    departure_date TEXT NOT NULL,
+    miles_program TEXT NOT NULL,
+    trip_kind TEXT NOT NULL DEFAULT 'ida',
+    miles INTEGER NOT NULL,
+    collected_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_price_snap_route
+    ON price_snapshots(origin, destination, departure_date, miles_program, trip_kind, collected_at);
+
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     created_at TEXT NOT NULL,
@@ -124,12 +137,18 @@ def init_db() -> None:
         if "trip_kind" not in columns:
             db.execute("ALTER TABLE results ADD COLUMN trip_kind TEXT")
         db.execute("DELETE FROM results WHERE IFNULL(source, '') IN ('demo', 'seats.aero')")
-        db.execute("DELETE FROM results WHERE price_type = 'cash'")
         db.execute(
             """
             DELETE FROM results
-            WHERE IFNULL(miles_program, '') NOT IN ('latam', 'azul')
-               OR IFNULL(source, '') NOT IN ('latampass', 'tudoazul', 'latam', 'azul')
+            WHERE price_type = 'cash'
+              AND IFNULL(source, '') NOT IN ('smiles')
+            """
+        )
+        db.execute(
+            """
+            DELETE FROM results
+            WHERE IFNULL(miles_program, '') NOT IN ('latam', 'azul', 'smiles')
+               OR IFNULL(source, '') NOT IN ('latampass', 'tudoazul', 'latam', 'azul', 'smiles')
             """
         )
         db.execute("DELETE FROM searches WHERE demo = 1")
@@ -153,6 +172,29 @@ def init_db() -> None:
         if "approved_at" not in user_cols:
             db.execute("ALTER TABLE users ADD COLUMN approved_at TEXT")
         db.execute("UPDATE users SET status = 'approved' WHERE role = 'admin' AND IFNULL(status, '') != 'approved'")
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS price_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                origin TEXT NOT NULL,
+                destination TEXT NOT NULL,
+                departure_date TEXT NOT NULL,
+                miles_program TEXT NOT NULL,
+                trip_kind TEXT NOT NULL DEFAULT 'ida',
+                miles INTEGER NOT NULL,
+                collected_at TEXT NOT NULL
+            )
+            """
+        )
+        db.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_price_snap_route
+                ON price_snapshots(origin, destination, departure_date, miles_program, trip_kind, collected_at)
+            """
+        )
+    from app.prices import backfill_price_history
+
+    backfill_price_history()
 
 
 def now_iso() -> str:
@@ -246,7 +288,10 @@ def insert_results(rows: Iterable[dict[str, Any]]) -> int:
             """,
             payload,
         )
-        return len(payload)
+    from app.prices import record_cheapest_from_rows
+
+    record_cheapest_from_rows(payload)
+    return len(payload)
 
 
 def _code_filter(column: str, code: str | None) -> tuple[str, list[str]]:
@@ -466,9 +511,10 @@ def replace_miles_route(
     cabin: str | None = None,
     return_date: str | None = None,
 ) -> None:
+    kept: list[dict[str, Any]] = []
     with get_db() as db:
         sql = """
-            DELETE FROM results
+            SELECT * FROM results
             WHERE origin = ?
               AND destination = ?
               AND departure_date = ?
@@ -479,10 +525,11 @@ def replace_miles_route(
         if cabin:
             sql += " AND IFNULL(cabin, '') = ?"
             params.append(cabin)
-        db.execute(sql, params)
+        kept.extend(dict(row) for row in db.execute(sql, params).fetchall())
+        db.execute(sql.replace("SELECT * FROM results", "DELETE FROM results", 1), params)
         if return_date:
             volta_sql = """
-                DELETE FROM results
+                SELECT * FROM results
                 WHERE origin = ?
                   AND destination = ?
                   AND departure_date = ?
@@ -499,7 +546,12 @@ def replace_miles_route(
             if cabin:
                 volta_sql += " AND IFNULL(cabin, '') = ?"
                 volta_params.append(cabin)
-            db.execute(volta_sql, volta_params)
+            kept.extend(dict(row) for row in db.execute(volta_sql, volta_params).fetchall())
+            db.execute(volta_sql.replace("SELECT * FROM results", "DELETE FROM results", 1), volta_params)
+    if kept:
+        from app.prices import record_cheapest_from_rows
+
+        record_cheapest_from_rows(kept)
 
 
 def count_users() -> int:

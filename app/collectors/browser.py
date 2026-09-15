@@ -602,11 +602,15 @@ async def _ensure_latam_cookies(page, home: str, session_mark: Path | None = Non
 
 
 async def login_with_env(page, program: str, home: str, session_mark: Path | None = None) -> bool:
-    """Azul: visitante, sem conta. LATAM: só cookies; login manual se precisar. Smiles: ainda pode usar .env."""
+    """Azul e Smiles: visitante, sem conta. LATAM: só cookies; login manual se precisar."""
     program_key = (program or "").strip().lower()
     if program_key == "azul":
         await dismiss_banners(page)
         print("Busco a Azul como visitante, sem entrar na conta.", flush=True)
+        return True
+    if program_key == "smiles":
+        await dismiss_banners(page)
+        print("Busco a GOL/Smiles como visitante, sem entrar na conta.", flush=True)
         return True
     if program_key == "latam":
         await dismiss_banners(page)
@@ -1069,15 +1073,16 @@ def _airport_type_hints(code: str) -> list[str]:
 async def find_airport_option(page, code: str):
     typed = code.strip().upper()
     city = str((AIRPORTS.get(typed) or {}).get("city") or "").split("(")[0].strip()
+    if typed == "RIO":
+        city = city or "Rio de Janeiro"
+    elif typed == "SAO":
+        city = city or "São Paulo"
+    patterns = []
     if typed in CITY_AIRPORTS:
-        patterns = [
-            re.compile(r"todos os aeroportos", re.I),
-            re.compile(rf"\b{re.escape(typed)}\b", re.I),
-        ]
-    else:
-        patterns = [re.compile(rf"\b{re.escape(typed)}\b", re.I)]
-        if city:
-            patterns.append(re.compile(re.escape(city), re.I))
+        patterns.append(re.compile(r"todos os aeroportos", re.I))
+    patterns.append(re.compile(rf"\b{re.escape(typed)}\b", re.I))
+    if city:
+        patterns.append(re.compile(re.escape(city), re.I))
     queries = []
     for pattern in patterns:
         queries.extend(
@@ -1091,7 +1096,7 @@ async def find_airport_option(page, code: str):
             ]
         )
     for locator in queries:
-        option = await first_visible(locator, timeout=450)
+        option = await first_visible(locator, timeout=220)
         if option is not None:
             return option
     return None
@@ -1114,11 +1119,11 @@ async def fill_airport(page, root, labels: tuple[str, ...], code: str, extra=Non
         await human_type(page, field, hint)
         await page.wait_for_timeout(700)
         option = None
-        for _ in range(8):
+        for _ in range(4):
             option = await find_airport_option(page, typed)
             if option is not None:
                 break
-            await page.wait_for_timeout(400)
+            await page.wait_for_timeout(280)
         if option is not None:
             await human_click(option, page=page)
             await pause(page, 0.45, 0.9)
@@ -1206,14 +1211,52 @@ async def pick_dates(page, outbound: str, inbound: str | None) -> bool:
         except Exception:
             pass
         await pause(page, 0.4, 0.8)
-    if not await click_calendar_day(page, outbound):
-        return False
-    if not inbound:
+    if await click_calendar_day(page, outbound):
+        if not inbound:
+            await close_datepicker(page)
+            return True
+        ok = await click_calendar_day(page, inbound)
         await close_datepicker(page)
+        return ok
+    print("Não achei o dia no calendário; digito as datas.", flush=True)
+    return await type_trip_dates(page, outbound, inbound)
+
+
+def _br_date(day: str) -> str:
+    parsed = date.fromisoformat(day[:10])
+    return parsed.strftime("%d/%m/%Y")
+
+
+async def type_trip_dates(page, outbound: str, inbound: str | None) -> bool:
+    out_field = await find_field(
+        page,
+        ("data de ida", "data da ida", "partida", "^ida$", "departure", "datas"),
+        extra=page.get_by_placeholder(re.compile(r"dd/mm|aaaa|ida|selecione", re.I)),
+    )
+    if out_field is None:
+        return False
+    await human_type(page, out_field, _br_date(outbound))
+    await pause(page, 0.35, 0.7)
+    if not inbound:
+        try:
+            await page.keyboard.press("Escape")
+        except Exception:
+            pass
         return True
-    ok = await click_calendar_day(page, inbound)
-    await close_datepicker(page)
-    return ok
+    back_field = await find_field(
+        page,
+        ("data de volta", "data da volta", "retorno", "^volta$", "return"),
+        extra=page.get_by_placeholder(re.compile(r"dd/mm|aaaa|volta|retorno", re.I)),
+    )
+    if back_field is None:
+        back_field = out_field
+    await human_type(page, back_field, _br_date(inbound))
+    await pause(page, 0.35, 0.7)
+    try:
+        await page.keyboard.press("Escape")
+    except Exception:
+        pass
+    return True
 
 
 async def datepicker_open(page) -> bool:
@@ -1501,6 +1544,7 @@ def compact_offer(offer: Offer) -> dict[str, Any]:
         "tarifa": offer.fare,
         "trip_kind": offer.trip_kind,
         "milhas": offer.miles,
+        "reais": offer.price_cash,
         "taxas": offer.taxes,
         "program": offer.miles_program,
         "source": offer.source,
@@ -1527,12 +1571,18 @@ def write_offers_harvest(
     if not groups:
         return last
     for (origin, dest, day), items in groups.items():
-        file_path = harvest_route_path(raw_dir, origin, dest, day, job=job)
+        grouped_job = {**job, "origin": origin, "destination": dest, "day": day}
+        if dest.upper() == str(job.get("origin") or "").upper() and origin.upper() == str(
+            job.get("destination") or ""
+        ).upper():
+            grouped_job["return_day"] = None
+            grouped_job["leg"] = "volta"
+        file_path = harvest_route_path(raw_dir, origin, dest, day, job=grouped_job)
         file_path.parent.mkdir(parents=True, exist_ok=True)
         file_path.write_text(
             json.dumps(
                 {
-                    "job": {**job, "origin": origin, "destination": dest, "day": day},
+                    "job": grouped_job,
                     "status": status,
                     "url": url,
                     "offers": items,
@@ -1591,6 +1641,7 @@ async def collect_home_jobs(
     booking_url: Callable[..., str],
     miles_after_dates: bool = False,
     read_page: Callable[..., Any] | None = None,
+    fill_search: Callable[..., Any] | None = None,
     pause_seconds: float | None = None,
     halt_on: set[str] | None = None,
     save_raw: bool = True,
@@ -1637,7 +1688,8 @@ async def collect_home_jobs(
                     print("O Chrome fechou de novo. Paro esta leva.", flush=True)
                     return results
                 raise
-        await accept_cookie_banner(page, wait_seconds=12)
+        cookie_wait = 22 if program == "azul" else 12
+        await accept_cookie_banner(page, wait_seconds=cookie_wait)
         await dismiss_banners(page)
         await login_with_env(page, program, home, session_mark=session_mark)
         if program == "azul":
@@ -1648,7 +1700,8 @@ async def collect_home_jobs(
                 flush=True,
             )
             await page.wait_for_timeout(int(startup_wait_seconds * 1000))
-        await accept_cookie_banner(page, wait_seconds=8)
+        later_cookies = 15 if program == "azul" else 8
+        await accept_cookie_banner(page, wait_seconds=later_cookies)
         await dismiss_banners(page)
 
         async def on_response(response) -> None:
@@ -1681,6 +1734,11 @@ async def collect_home_jobs(
             prev = (captured.get("bff_url") or "").lower()
             if program == "azul" and "tudoazul" in prev and "tudoazul" not in url:
                 return
+            if program == "smiles":
+                if "airlines/search" in prev and "airlines/search" not in url:
+                    return
+                if ("calendar" in url or "carousel" in url) and captured.get("bff"):
+                    return
             captured["bff"] = body
             captured["bff_url"] = response.url
             captured["bff_status"] = response.status
@@ -1735,52 +1793,57 @@ async def collect_home_jobs(
                 else:
                     if program == "azul":
                         await dismiss_account_overlay(page)
-                    if return_day:
-                        trip = await click_named(page, round_labels)
-                        print(f"Trecho: {trip or 'ida e volta'}.", flush=True)
+                    if fill_search:
+                        filled = await fill_search(page, origin, dest, day, return_day)
+                        if not filled:
+                            raise RuntimeError("form_fill_failed:smiles")
                     else:
-                        trip = await click_named(page, oneway_labels)
-                        print(f"Trecho: {trip or 'somente ida'}.", flush=True)
-                    await pause(page, 0.4, 0.9)
-                    if program == "azul":
-                        await dismiss_banners(page)
-                    origin_box = page.get_by_role("combobox", name=re.compile(r"^origem$", re.I))
-                    dest_box = page.get_by_role("combobox", name=re.compile(r"^destino$", re.I))
-                    if not await fill_airport(
-                        page, page, origin_labels, origin, extra=origin_box, require_option=require_airport_option
-                    ):
-                        raise RuntimeError("form_fill_failed:origem")
-                    print(f"Origem {origin} selecionada no select.", flush=True)
-                    await pause(page, 0.6, 1.1)
-                    if not await fill_airport(
-                        page, page, dest_labels, dest, extra=dest_box, require_option=require_airport_option
-                    ):
-                        raise RuntimeError("form_fill_failed:destino")
-                    print(f"Destino {dest} selecionado no select.", flush=True)
-                    await pause(page, 0.6, 1.1)
-                    if miles_labels and not miles_after_dates:
-                        marked = await mark_checkbox(page, miles_labels)
-                        print("Pontos marcados na home." if marked else "Ainda não achei Pontos na home; sigo.", flush=True)
-                    await pause(page, 0.4, 0.9)
-                    if not await pick_dates(page, day, return_day):
-                        raise RuntimeError("form_fill_failed:data")
-                    print("Datas preenchidas.", flush=True)
-                    await pause(page, 0.5, 0.9)
-                    if miles_labels and miles_after_dates:
-                        marked = await wait_and_mark_points(page, miles_labels)
-                        if marked and not await azul_points_is_on(page):
-                            marked = False
-                        print(
-                            "Marquei Usar pontos Azul na home, depois das datas."
-                            if marked
-                            else "O checkbox Usar pontos Azul não ficou marcado. Não busco.",
-                            flush=True,
-                        )
-                        if not marked:
-                            raise RuntimeError("form_fill_failed:pontos")
-                        await pause(page, 0.35, 0.7)
-                    search = await click_home_search(page, search_labels)
-                    print(f"Cliquei em buscar passagens ({search}).", flush=True)
+                        if return_day:
+                            trip = await click_named(page, round_labels)
+                            print(f"Trecho: {trip or 'ida e volta'}.", flush=True)
+                        else:
+                            trip = await click_named(page, oneway_labels)
+                            print(f"Trecho: {trip or 'somente ida'}.", flush=True)
+                        await pause(page, 0.4, 0.9)
+                        if program == "azul":
+                            await dismiss_banners(page)
+                        origin_box = page.get_by_role("combobox", name=re.compile(r"^origem$", re.I))
+                        dest_box = page.get_by_role("combobox", name=re.compile(r"^destino$", re.I))
+                        if not await fill_airport(
+                            page, page, origin_labels, origin, extra=origin_box, require_option=require_airport_option
+                        ):
+                            raise RuntimeError("form_fill_failed:origem")
+                        print(f"Origem {origin} selecionada no select.", flush=True)
+                        await pause(page, 0.6, 1.1)
+                        if not await fill_airport(
+                            page, page, dest_labels, dest, extra=dest_box, require_option=require_airport_option
+                        ):
+                            raise RuntimeError("form_fill_failed:destino")
+                        print(f"Destino {dest} selecionado no select.", flush=True)
+                        await pause(page, 0.6, 1.1)
+                        if miles_labels and not miles_after_dates:
+                            marked = await mark_checkbox(page, miles_labels)
+                            print("Pontos marcados na home." if marked else "Ainda não achei Pontos na home; sigo.", flush=True)
+                        await pause(page, 0.4, 0.9)
+                        if not await pick_dates(page, day, return_day):
+                            raise RuntimeError("form_fill_failed:data")
+                        print("Datas preenchidas.", flush=True)
+                        await pause(page, 0.5, 0.9)
+                        if miles_labels and miles_after_dates:
+                            marked = await wait_and_mark_points(page, miles_labels)
+                            if marked and not await azul_points_is_on(page):
+                                marked = False
+                            print(
+                                "Marquei Usar pontos Azul na home, depois das datas."
+                                if marked
+                                else "O checkbox Usar pontos Azul não ficou marcado. Não busco.",
+                                flush=True,
+                            )
+                            if not marked:
+                                raise RuntimeError("form_fill_failed:pontos")
+                            await pause(page, 0.35, 0.7)
+                        search = await click_home_search(page, search_labels)
+                        print(f"Cliquei em buscar passagens ({search}).", flush=True)
                     await pause(page, 1.2, 2.0)
                     await dismiss_banners(page)
                     if program == "azul":
@@ -1797,6 +1860,15 @@ async def collect_home_jobs(
                             except Exception:
                                 await page.wait_for_timeout(1500)
                         print(f"URL da busca Azul: {page.url}", flush=True)
+                    if program == "smiles":
+                        try:
+                            await page.wait_for_url(
+                                re.compile(r"emissao-passagem|passagens-aereas|selecao"),
+                                timeout=25000,
+                            )
+                        except Exception:
+                            pass
+                        print(f"URL da busca GOL/Smiles: {page.url}", flush=True)
                     text = ""
                     if results_miles_labels:
                         for _ in range(wait_loops):
@@ -1835,7 +1907,7 @@ async def collect_home_jobs(
                             await page.wait_for_timeout(1000)
                             continue
                         if read_page and await first_visible(
-                            page.get_by_text(re.compile(r"ver tarifas|voos encontrados|escolher seu voo|não encontramos|nao encontramos", re.I)),
+                            page.get_by_text(re.compile(r"ver tarifas|voos encontrados|escolher seu voo|selecionar voo|tarifa para clientes|não encontramos|nao encontramos", re.I)),
                             timeout=400,
                         ):
                             break
@@ -1849,6 +1921,7 @@ async def collect_home_jobs(
                         elif not read_page and miles_from_text(text):
                             break
                         await page.wait_for_timeout(1000)
+                    body_now = ""
                     if read_page:
                         try:
                             body_now = (await page.inner_text("body") or "").lower()
@@ -1858,19 +1931,33 @@ async def collect_home_jobs(
                             print("A lista da Azul ainda estava vazia; recarrego a busca uma vez.", flush=True)
                             try:
                                 await page.reload(wait_until="domcontentloaded", timeout=90000)
-                                await page.wait_for_timeout(8000)
                             except Exception:
                                 pass
+                            for _ in range(90):
+                                try:
+                                    body_now = (await page.inner_text("body") or "").lower()
+                                except Exception:
+                                    body_now = ""
+                                if "@cidade" not in body_now and "falta pouco para sua viagem" not in body_now:
+                                    print("A lista da Azul carregou depois do reload.", flush=True)
+                                    break
+                                await page.wait_for_timeout(1000)
+                            else:
+                                print("A Azul continuou no esqueleto da busca.", flush=True)
                         await browse_results(page)
                         page_offers = await read_page(page, origin, dest, day, return_day)
                         if page_offers:
                             offers = page_offers
                             print(
-                                f"Li {len(offers)} tarifas na tela (Pública/Diamante ou Tarifa), sem clicar em voo.",
+                                f"Li {len(offers)} tarifas na tela.",
                                 flush=True,
                             )
                         elif captured.get("urls"):
                             print(f"Rede Azul nesta busca: {captured.get('urls')[:8]}", flush=True)
+                        try:
+                            body_now = (await page.inner_text("body") or "").lower()
+                        except Exception:
+                            pass
                     payload["url"] = page.url
                     payload["network"] = captured.get("urls") or []
                     if captured.get("bff_url"):
@@ -1883,6 +1970,10 @@ async def collect_home_jobs(
                         offers = parse_offers(captured["bff"], origin, dest, day, return_day)
                     if offers:
                         pass
+                    elif program == "smiles" and "aguarde enquanto buscamos" in (body_now or text or "").lower():
+                        status = "error"
+                        payload["error"] = "results_still_loading"
+                        print("A GOL/Smiles ainda busca os voos; não marco como vazio.", flush=True)
                     elif blocked:
                         status = "throttled"
                         payload["error"] = "throttled"
@@ -1965,7 +2056,7 @@ async def collect_home_jobs(
                     session_mark.unlink(missing_ok=True)
                 break
             if index < len(jobs) - 1 and status in {"ok", "empty"}:
-                if program == "azul":
+                if program in {"azul", "smiles"}:
                     gap = azul_gap_seconds()
                     rested = await rest_on_results_then_home(page, home, gap, vary=False)
                 else:

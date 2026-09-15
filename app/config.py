@@ -96,6 +96,7 @@ LATAM_PROFILE_DIR = DATA_DIR / "latam-chrome-profile"
 AZUL_PROFILE_DIR = DATA_DIR / "azul-chrome-profile"
 AZUL_GUEST_PROFILE_DIR = DATA_DIR / "azul-chrome-guest"
 SMILES_PROFILE_DIR = DATA_DIR / "smiles-chrome-profile"
+SMILES_GUEST_PROFILE_DIR = DATA_DIR / "smiles-chrome-guest"
 LATAM_MAX_ROUTES = max(1, int(os.getenv("LATAM_MAX_ROUTES", "6")))
 LATAM_MAX_PER_RUN = max(1, int(os.getenv("LATAM_MAX_PER_RUN", "6")))
 LATAM_PAUSE_SECONDS = float(os.getenv("LATAM_PAUSE_SECONDS", "150"))
@@ -180,7 +181,7 @@ def harvest_route_path(
     job = job or {}
     program = str(job.get("program") or program_dir.name).lower()
     file_name = f"{origin.upper()}-{destination.upper()}.json"
-    if program not in {"azul", "latam"}:
+    if program not in {"azul", "latam", "smiles"}:
         return program_dir / str(day) / file_name
     kind = str(job.get("kind") or "").lower()
     bucket = "Internacionais" if kind == "international" else "Nacionais"

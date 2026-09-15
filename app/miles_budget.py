@@ -13,6 +13,15 @@ AZUL_INTL_BUSINESS_MAX = 150_000
 AZUL_FARE_PUBLICA = "Tarifa Pública"
 AZUL_FARE_DIAMANTE = "Tarifa Diamante"
 AZUL_FARE_UNICA = "Tarifa"
+SMILES_NATIONAL_MILES_MAX = 15_000
+SMILES_INTL_MILES_MAX = 50_000
+SMILES_NATIONAL_CASH_MAX = 400.0
+SMILES_INTL_CASH_MAX = 1_000.0
+SMILES_MILES_MAX = SMILES_NATIONAL_MILES_MAX
+SMILES_CASH_MAX = SMILES_NATIONAL_CASH_MAX
+SMILES_FARE_CLIENT = "Tarifa Smiles"
+SMILES_FARE_CLUB = "Tarifa Clube Smiles"
+SMILES_FARE_CASH = "Dinheiro"
 
 
 def azul_fare_pairs(normal: int | None, diamond: int | None) -> list[tuple[str, int]]:
@@ -62,6 +71,8 @@ def max_miles_per_leg(
         if _is_business(cabin, fare):
             return AZUL_INTL_BUSINESS_MAX
         return AZUL_INTL_CHEAPEST_MAX
+    if prog == "smiles":
+        return SMILES_INTL_MILES_MAX if international else SMILES_NATIONAL_MILES_MAX
     if not international:
         return LATAM_NATIONAL_MAX
     if _is_business(cabin, fare):
@@ -148,3 +159,29 @@ def plausible_miles(
     if cap is not None and value > cap:
         return False
     return True
+
+
+def smiles_caps(origin: str, dest: str) -> tuple[int, float]:
+    if _international(origin, dest):
+        return SMILES_INTL_MILES_MAX, SMILES_INTL_CASH_MAX
+    return SMILES_NATIONAL_MILES_MAX, SMILES_NATIONAL_CASH_MAX
+
+
+def smiles_keep_offer(
+    miles: int | None,
+    cash: float | None,
+    origin: str = "",
+    dest: str = "",
+) -> bool:
+    """GOL: nacional 5–15 mil milhas ou até R$ 400; internacional 12–50 mil ou até R$ 1.000."""
+    miles_cap, cash_cap = smiles_caps(origin, dest)
+    floor = min_miles_per_leg(origin, dest)
+    if miles:
+        value = int(miles)
+        return floor <= value <= miles_cap
+    if cash is not None:
+        try:
+            return 0 < float(cash) <= cash_cap
+        except (TypeError, ValueError):
+            return False
+    return False
