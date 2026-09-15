@@ -958,12 +958,22 @@ async def _choose_light_fare(page, index: int) -> bool:
 
 async def _wait_volta(page, context, wait_loops: int):
     warned = False
-    for _ in range(wait_loops):
+    loops = max(int(wait_loops or 0), 90)
+    for _ in range(loops):
+        other = _pick_latam_page(context)
+        if other and other is not page:
+            try:
+                await other.bring_to_front()
+            except Exception:
+                pass
+            page = other
         page = await _ensure_latam_page(context, page, quiet=warned)
         if "latamairlines.com" not in (page.url or "") or "booking.com" in (page.url or ""):
             warned = True
         ret = await _read_flight_cards(page)
-        if ret.get("ok") and ret.get("leg") == "volta":
+        if ret.get("ok") and ret.get("cards") and ret.get("leg") in {"volta", "unknown"}:
+            if ret.get("leg") == "unknown":
+                print("A lista não diz ida/volta no título; leio os cards da tela mesmo assim.", flush=True)
             return page, ret
         await page.wait_for_timeout(1000)
     return page, None
@@ -1318,6 +1328,101 @@ def _dedupe_offers(offers: list[Offer]) -> list[Offer]:
     return unique
 
 
+async def _append_volta_offers(
+    page,
+    job: dict[str, Any],
+    returns: list[dict[str, Any]],
+    offers: list[Offer],
+    picked_origin: str,
+) -> list[Offer]:
+    origin, dest = job["origin"], job["destination"]
+    return_day = job.get("return_day") or job.get("return_date")
+    international = str(job.get("kind") or "").lower() == "international"
+    volta_booking = latam_url(dest, origin, return_day, True, return_date=None) if return_day else ""
+    print(
+        "Voos de volta: gravo só as milhas que aparecem no card, sem inventar trecho por subtração.",
+        flush=True,
+    )
+    print(f"{len(returns)} voos de volta. Gravo LIGHT e, se houver, a executiva de cada um.", flush=True)
+    for ret in returns:
+        in_orig, in_dest = _card_airports(ret, dest, picked_origin)
+        volta_miles = _card_face_miles(ret)
+        if plausible_miles(volta_miles, in_orig, in_dest, trip_kind="volta"):
+            offers.append(
+                _offer_leg(
+                    in_orig,
+                    in_dest,
+                    return_day,
+                    ret,
+                    {},
+                    volta_booking,
+                    "economy",
+                    "LIGHT",
+                    "volta",
+                )
+            )
+        elif volta_miles:
+            print(
+                f"Ignoro volta {volta_miles} milhas {in_orig}-{in_dest}; fora do teto do trecho.",
+                flush=True,
+            )
+        if not international:
+            continue
+        await page.wait_for_timeout(2500)
+        try:
+            brands = await _read_card_brands(page, ret["index"])
+        except Exception:
+            brands = []
+        biz = _cheapest_business_brand(brands)
+        if not biz:
+            continue
+        priced = {**ret, "miles": biz["miles"], "taxes": biz.get("taxes")}
+        if int(priced["miles"] or 0) <= int(ret.get("miles") or 0):
+            continue
+        volta_miles = _card_face_miles(priced)
+        if plausible_miles(volta_miles, in_orig, in_dest, "business", trip_kind="volta"):
+            offers.append(
+                _offer_leg(
+                    in_orig,
+                    in_dest,
+                    return_day,
+                    priced,
+                    {},
+                    volta_booking,
+                    "business",
+                    biz["brand"],
+                    "volta",
+                )
+            )
+    return offers
+
+
+async def _collect_volta_from_cards(page, job: dict[str, Any], cards: dict[str, Any], url: str):
+    origin, dest, day = job["origin"], job["destination"], job["day"]
+    return_day = job.get("return_day") or job.get("return_date")
+    returns = list(cards.get("cards") or [])
+    if not returns:
+        return page, [], "empty"
+    offers = await _append_volta_offers(page, job, returns, [], dest)
+    offers = [
+        item
+        for item in _dedupe_offers(offers)
+        if plausible_miles(
+            item.miles,
+            item.origin,
+            item.destination,
+            item.cabin,
+            fare=item.fare,
+            trip_kind=item.trip_kind,
+        )
+    ]
+    print(
+        f"Pronto {origin}-{dest}: 0 idas em {day}, {len(offers)} voltas em {return_day}, 0 totais. Sem nova busca.",
+        flush=True,
+    )
+    return page, offers, "ok"
+
+
 async def _ida_list(page, origin: str, dest: str, day: str, return_day: str | None) -> dict[str, Any]:
     cards = await _read_flight_cards(page)
     if cards.get("ok") and cards.get("leg") == "ida":
@@ -1398,63 +1503,9 @@ async def _collect_job_offers(page, context, job: dict[str, Any], cards: dict[st
         print("A volta não carregou; fico só com as idas. Não refaço a busca.", flush=True)
         return page, _dedupe_offers(offers), "ok"
 
-    returns = list(ret_cards.get("cards") or [])
-    print(
-        "Voos de volta: gravo só as milhas que aparecem no card, sem inventar trecho por subtração.",
-        flush=True,
+    offers = await _append_volta_offers(
+        page, job, list(ret_cards.get("cards") or []), offers, picked_origin
     )
-    print(f"{len(returns)} voos de volta. Gravo LIGHT e, se houver, a executiva de cada um.", flush=True)
-    for ret in returns:
-        in_orig, in_dest = _card_airports(ret, dest, picked_origin)
-        volta_miles = _card_face_miles(ret)
-        if plausible_miles(volta_miles, in_orig, in_dest, trip_kind="volta"):
-            offers.append(
-                _offer_leg(
-                    in_orig,
-                    in_dest,
-                    return_day,
-                    ret,
-                    {},
-                    volta_booking,
-                    "economy",
-                    "LIGHT",
-                    "volta",
-                )
-            )
-        elif volta_miles:
-            print(
-                f"Ignoro volta {volta_miles} milhas {in_orig}-{in_dest}; fora do teto do trecho.",
-                flush=True,
-            )
-        if not international:
-            continue
-        await page.wait_for_timeout(2500)
-        try:
-            brands = await _read_card_brands(page, ret["index"])
-        except Exception:
-            brands = []
-        biz = _cheapest_business_brand(brands)
-        if not biz:
-            continue
-        priced = {**ret, "miles": biz["miles"], "taxes": biz.get("taxes")}
-        if int(priced["miles"] or 0) <= int(ret.get("miles") or 0):
-            continue
-        volta_miles = _card_face_miles(priced)
-        if plausible_miles(volta_miles, in_orig, in_dest, "business", trip_kind="volta"):
-            offers.append(
-                _offer_leg(
-                    in_orig,
-                    in_dest,
-                    return_day,
-                    priced,
-                    {},
-                    volta_booking,
-                    "business",
-                    biz["brand"],
-                    "volta",
-                )
-            )
-
     offers = [
         item
         for item in _dedupe_offers(offers)
@@ -2339,23 +2390,35 @@ async def collect_latam_jobs(
                         payload["error"] = cards.get("reason") or "no_flight_cards"
                     else:
                         cards = await _read_flight_cards(page)
-                        if cards.get("leg") == "volta":
-                            print("Estou na volta desta busca; volto à lista de ida sem pesquisar de novo.", flush=True)
-                            await _go_back_to_outbound(page)
-                            cards = await _read_flight_cards(page)
-                        if not cards.get("ok") or cards.get("leg") != "ida":
-                            status = "error"
-                            payload["error"] = "not_on_outbound"
-                        else:
-                            payload["leg"] = cards.get("leg")
-                            payload["outbound"] = cards.get("cheapest")
-                            page, offers, collect_status = await _collect_job_offers(
-                                page, context, job, cards, url, wait_loops
+                        if cards.get("leg") == "volta" and cards.get("cards"):
+                            print("A tela já está na volta. Gravo estes voos, sem voltar à ida nem pesquisar de novo.", flush=True)
+                            payload["leg"] = "volta"
+                            payload["inbound"] = cards.get("cheapest")
+                            page, offers, collect_status = await _collect_volta_from_cards(
+                                page, job, cards, url
                             )
                             if collect_status != "ok":
                                 status = collect_status
                             if not offers and status == "ok":
                                 status = "empty"
+                        else:
+                            if cards.get("leg") == "volta":
+                                print("Estou na volta desta busca; volto à lista de ida sem pesquisar de novo.", flush=True)
+                                await _go_back_to_outbound(page)
+                                cards = await _read_flight_cards(page)
+                            if not cards.get("ok") or cards.get("leg") != "ida":
+                                status = "error"
+                                payload["error"] = "not_on_outbound"
+                            else:
+                                payload["leg"] = cards.get("leg")
+                                payload["outbound"] = cards.get("cheapest")
+                                page, offers, collect_status = await _collect_job_offers(
+                                    page, context, job, cards, url, wait_loops
+                                )
+                                if collect_status != "ok":
+                                    status = collect_status
+                                if not offers and status == "ok":
+                                    status = "empty"
             except LatamHttp2Error as exc:
                 recycles += 1
                 print(f"HTTP/2 na LATAM ({str(exc).splitlines()[0][:160]}).", flush=True)

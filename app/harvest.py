@@ -41,6 +41,7 @@ from app.airports import expand_city_airports
 from app.catalog import collapse_rio_jobs
 from app.collectors.azul import azul_session_ready, collect_azul_jobs
 from app.collectors.latam import collect_latam_jobs, latam_session_ready
+from app.collectors.smiles import smiles_session_ready
 from app.db import create_search, insert_results, now_iso, query_results, replace_miles_route, update_search
 
 LATAM_CURSOR_PATH = HARVEST_STATE_DIR / "cursor-latam.json"
@@ -168,7 +169,7 @@ def harvest_status() -> dict[str, Any]:
         "has_key": has_live_cia_miles(),
         "latam_ready": latam_session_ready(),
         "azul_ready": azul_session_ready(),
-        "smiles_ready": False,
+        "smiles_ready": smiles_session_ready(),
         "latam_max": min(LATAM_MAX_ROUTES, LATAM_MAX_PER_RUN),
     }
 

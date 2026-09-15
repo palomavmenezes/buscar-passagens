@@ -19,11 +19,11 @@ Se faltar destino, data de ida ou data de volta — e nenhum padrão abaixo comp
 
 Origem padrão: GIG, se ela não disser outra.
 
-Se ela quiser **GIG e SDU na mesma rota**, não faça duas buscas. Use **RIO** na LATAM e na Azul (`--origem RIO` ou `--origem GIG,SDU`, que vira uma busca RIO). Na coleta, grave o aeroporto real de cada voo (GIG ou SDU).
+Se ela quiser **GIG e SDU na mesma rota**, não faça duas buscas. Use **RIO** na LATAM, na Azul e na GOL/Smiles (`--origem RIO` ou `--origem GIG,SDU`, que vira uma busca RIO). Na coleta, grave o aeroporto real de cada voo (GIG ou SDU).
 
 Se ela quiser **Congonhas, Guarulhos e Viracopos** na mesma rota, use **SAO** (`--para SAO` ou `--origem SAO`). Uma busca cobre CGH, GRU e VCP. Grave o aeroporto real de cada voo.
 
-Não dispare o Chrome só com “quero passagens” ou “busca o catálogo”. Agenda automática: só LATAM. Azul só quando ela pedir.
+Agenda automática: só LATAM. Azul e GOL/Smiles só quando ela pedir.
 
 ## Padrões que já dão para rodar
 
@@ -80,7 +80,9 @@ Nacional e internacional **não são iguais** na LATAM e na Azul. Fonte: `data/r
 
 **Azul internacional:** EUA FLL MCO · Europa LIS OPO MAD · Caribe/América do Sul CUR MVD PDP ASU BRC MDZ
 
-**LATAM internacional:** Europa, América do Norte, América do Sul, América Central, Ásia, Oriente Médio, África (lista completa no `routes.json`)
+**GOL/Smiles nacional:** SAO (CGH GRU VCP) · RIO (GIG SDU) · BSB CNF SSA BPS REC FEN FOR JPA MCZ SLZ AJU CWB IGU FLN NVT POA CXJ GYN BYO MAO BEL VIX
+
+**GOL/Smiles internacional:** EUA MIA MCO JFK LAX · Europa CDG ORY AMS LIS MAD BCN IST · Colômbia BOG MDE CTG · Panamá PTY · México MEX CUN · Oriente Médio DXB DOH · Canadá YYZ YVR · Uruguai MVD PDP · Chile SCL · Peru LIM
 
 ## Ritmo ético
 
@@ -92,6 +94,8 @@ Nacional e internacional **não são iguais** na LATAM e na Azul. Fonte: `data/r
 
 O site mostra data e horário de cada voo para ela escolher na hora de comprar. Gravar todos os voos da busca, não só o mais barato.
 
+Ida + volta em varreduras longas (Azul, GOL e LATAM): **uma busca por par de datas**. Emparelha a 1ª ida com a 1ª volta, a 2ª com a 2ª, e assim por diante. Lê os voos de ida, clica **uma** ida, lê a volta. Não fazer só-ida e depois só-volta.
+
 Ida + volta, nacional e internacional — **uma busca, duas pastas**:
 
 - Na tela de ida, ler **todos** os voos LIGHT de uma vez (milhas, paradas, duração). Salvar em `data/harvest/latam/DATA-IDA/ORIGEM-DESTINO.json`
@@ -102,6 +106,7 @@ Ida + volta, nacional e internacional — **uma busca, duas pastas**:
 Sessão nas cias:
 
 - **Azul:** busca como visitante. Não entrar na conta (risco de bloqueio por scraping). Chrome em `data/azul-chrome-guest`, sem o perfil logado.
+- **GOL/Smiles:** busca como visitante. Não entrar na conta. Chrome em `data/smiles-chrome-guest`. Home: `https://www.smiles.com.br/home`. Preencher o widget da própria Smiles (`#inp_flightOrigin_1`, `#inp_flightDestination_1`, calendário `#startDateId`/`#endDateId` só com o dia visível, mês seguinte `#btn_nextCalendar`, confirmar o valor no campo — ex. `dom, 20 dez` — antes de `#btn_search`). A lista de voos está em `/mfe/emissao-passagem` (`novo-resultado-voos=true`; ida = meia-noite BRT, volta = meio-dia BRT). Sempre esperar a lista aparecer — pode demorar um ou dois minutos no “Aguarde enquanto buscamos os melhores voos”. Não marcar vazio enquanto essa frase estiver na tela. Preferir o JSON `api-air-flightsearch-blue.../v1/airlines/search`, não o calendário/carousel. Não usar o formulário da Azul/LATAM. Não ler a vitrine da home como se fosse voo. Na lista, milhas: tarifa para clientes Smiles. Clube Smiles entra como tarifa com desconto. Dinheiro: o “ou R$” da lista. Ida + volta: ler as idas, clicar **Selecionar tarifa**, marcar **Tarifa para clientes Smiles** (não Clube nem Smiles & Money), clicar **Confirmar seleção**, esperar a lista da volta. Teto nacional: 15 mil milhas **ou** R$ 400. Teto internacional: 50 mil milhas **ou** R$ 1.000.
 - **LATAM:** precisa estar logada. Usar só cookies do perfil salvo. Se pedir login, **ela entra na mão** no Chrome aberto; não preencher `LATAM_USER` / `LATAM_PASSWORD`.
 
 ```bash

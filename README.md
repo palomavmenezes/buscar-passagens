@@ -8,7 +8,7 @@ O coletor local abre o Chrome visível, preenche a home como pessoa e intercepta
 
 - **LATAM Pass:** precisa de sessão. `python3 -m app.collectors.latam login` abre o Chrome para você entrar; a coleta só reusa os cookies. Não preenche senha.
 - **TudoAzul:** busca como visitante, sem login, para não arriscar a conta.
-- **GOL Smiles:** `python3 -m app.collectors.smiles login`
+- **GOL/Smiles:** busca como visitante, sem login. `python3 -m app.snapshot ask --origem RIO --programas smiles`
 
 Não há API paga, busca em dinheiro nem Seats.aero. GIG e SDU na mesma rota viram **uma busca RIO**.
 

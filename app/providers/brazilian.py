@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 import httpx
 
-from app.airports import collapse_rio_codes, expand_city_airports
+from app.airports import CITY_AIRPORTS, collapse_rio_codes, expand_city_airports
+
+BRT = timezone(timedelta(hours=-3))
 from app.config import GECKOAPI_API_KEY
 from app.dates import sample_dates
 from app.miles_budget import azul_fare_pairs
@@ -33,14 +35,31 @@ def _miles(value) -> int | None:
     return int(number)
 
 
+def smiles_epoch_ms(day: str, *, noon: bool = False) -> int:
+    parsed = date.fromisoformat(day[:10])
+    hour = 12 if noon else 0
+    return int(datetime(parsed.year, parsed.month, parsed.day, hour, tzinfo=BRT).timestamp() * 1000)
+
+
 def smiles_url(origin: str, dest: str, day: str, return_date: str | None) -> str:
+    origin_u = origin.strip().upper()
+    dest_u = dest.strip().upper()
+    origin_any = "true" if origin_u in CITY_AIRPORTS else "false"
+    dest_any = "true" if dest_u in CITY_AIRPORTS else "false"
     url = (
-        "https://www.smiles.com.br/mfe/emissao-passagem"
-        f"?originAirportCode={origin}&destinationAirportCode={dest}&departureDate={day}"
-        "&adults=1&children=0&infants=0&isElegible=false"
+        "https://www.smiles.com.br/mfe/emissao-passagem/"
+        f"?adults=1&cabin=ALL&children=0&departureDate={smiles_epoch_ms(day)}"
+        "&infants=0&isElegible=false&isFlexibleDateChecked=false"
     )
     if return_date:
-        url += f"&returnDate={return_date}"
+        url += f"&returnDate={smiles_epoch_ms(return_date, noon=True)}&searchType=g3&segments=1&tripType=1"
+    else:
+        url += "&searchType=g3&segments=1&tripType=2"
+    url += (
+        f"&originAirport={origin_u}&originCity=&originCountry=&originAirportIsAny={origin_any}"
+        f"&destinationAirport={dest_u}&destinCity=&destinCountry=&destinAirportIsAny={dest_any}"
+        "&novo-resultado-voos=true"
+    )
     return url
 
 
@@ -187,39 +206,18 @@ def _is_return_segment(item: dict) -> bool:
 
 def _parse_smiles(data: dict, origin: str, dest: str, day: str, return_date: str | None) -> list[Offer]:
     items = list(data.get("offers") or data.get("requestedFlightSegmentList") or data.get("flights") or [])
-    if return_date:
-        outbound = [item for item in items if not _is_return_segment(item)]
-        inbound = [item for item in items if _is_return_segment(item)]
-        if outbound and inbound:
-            out_vals = [pair for pair in (_smiles_best(item) for item in outbound) if pair]
-            in_vals = [pair for pair in (_smiles_best(item) for item in inbound) if pair]
-            if out_vals and in_vals:
-                out_best = min(out_vals, key=lambda pair: pair[0])
-                in_best = min(in_vals, key=lambda pair: pair[0])
-                return [
-                    Offer(
-                        origin=origin,
-                        destination=dest,
-                        departure_date=day,
-                        return_date=return_date,
-                        airline="GOL",
-                        stops=None,
-                        cabin="economy",
-                        price_type="miles",
-                        currency="BRL",
-                        price_cash=None,
-                        miles=out_best[0] + in_best[0],
-                        miles_program="smiles",
-                        taxes=(out_best[1] or 0) + (in_best[1] or 0),
-                        source="smiles",
-                        booking_url=smiles_url(origin, dest, day, return_date),
-                    )
-                ]
+    origin_u = origin.upper()
+    dest_u = dest.upper()
     offers: list[Offer] = []
     for item in items:
         best = _smiles_best(item)
         if not best:
             continue
+        inbound = bool(return_date) and _is_return_segment(item)
+        if inbound:
+            off_origin, off_dest, dep, kind, ret = dest_u, origin_u, return_date, "volta", None
+        else:
+            off_origin, off_dest, dep, kind, ret = origin_u, dest_u, day, "ida", return_date
         cabin = str(item.get("cabin") or "ECONOMIC").lower()
         cabin_key = "economy"
         if "business" in cabin or "execut" in cabin:
@@ -233,10 +231,10 @@ def _parse_smiles(data: dict, origin: str, dest: str, day: str, return_date: str
             stops = 1
         offers.append(
             Offer(
-                origin=origin,
-                destination=dest,
-                departure_date=day,
-                return_date=return_date,
+                origin=off_origin,
+                destination=off_dest,
+                departure_date=dep,
+                return_date=ret,
                 airline=str(item.get("airline") or "GOL"),
                 stops=stops,
                 cabin=cabin_key,
@@ -247,10 +245,11 @@ def _parse_smiles(data: dict, origin: str, dest: str, day: str, return_date: str
                 miles_program="smiles",
                 taxes=best[1],
                 source="smiles",
-                booking_url=smiles_url(origin, dest, day, return_date),
+                booking_url=smiles_url(off_origin, off_dest, dep, ret),
+                trip_kind=kind,
             )
         )
-    return _cheapest_only(offers)
+    return offers
 
 
 def _azul_iata(*values: Any) -> str | None:
